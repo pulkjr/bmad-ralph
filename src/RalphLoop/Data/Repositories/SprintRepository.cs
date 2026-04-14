@@ -35,6 +35,9 @@ public class SprintRepository(LedgerDb db)
 
     public async Task UpdateStatusAsync(long id, string status)
     {
+        if (string.IsNullOrWhiteSpace(status))
+            throw new ArgumentException("Sprint status must not be null or empty.", nameof(status));
+
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = "UPDATE sprints SET status = @s WHERE id = @id";
         cmd.Parameters.AddWithValue("@s", status);

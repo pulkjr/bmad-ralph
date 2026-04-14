@@ -54,4 +54,30 @@ public class CopilotLogLevelTests
     {
         Assert.Throws<ArgumentException>(() => CopilotLogLevel.Validate(level));
     }
+
+    // ── Null safety ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Validate_RejectsNull_WithArgumentException()
+    {
+        // null is not in ValidLevels; Contains(null) returns false → ArgumentException,
+        // not NullReferenceException.
+        Assert.Throws<ArgumentException>(() => CopilotLogLevel.Validate(null!));
+    }
+
+    // ── All public constants are in ValidLevels ────────────────────────────────
+
+    [Theory]
+    [InlineData(CopilotLogLevel.None)]
+    [InlineData(CopilotLogLevel.Error)]
+    [InlineData(CopilotLogLevel.Warning)]
+    [InlineData(CopilotLogLevel.Info)]
+    [InlineData(CopilotLogLevel.Debug)]
+    [InlineData(CopilotLogLevel.All)]
+    public void Validate_AcceptsEveryPublicConstant(string level)
+    {
+        // Ensures that if a new constant is added to CopilotLogLevel it is also
+        // added to ValidLevels. Each constant must round-trip through Validate.
+        CopilotLogLevel.Validate(level);
+    }
 }

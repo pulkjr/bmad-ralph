@@ -36,6 +36,8 @@ public class TestScriptRunner(string projectPath)
               You may NOT modify test.sh once written — only fix the application code.
               """;
 
+    private const int DefaultTimeoutMinutes = 10;
+
     public async Task<TestResult> RunAsync(CancellationToken ct = default)
     {
         if (!Exists)
@@ -55,13 +57,28 @@ public class TestScriptRunner(string projectPath)
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start bash");
 
-        var stdOut = await process.StandardOutput.ReadToEndAsync(ct);
-        var stdErr = await process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+        // Hard-cap: cancel after DefaultTimeoutMinutes even if the caller never cancels.
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(DefaultTimeoutMinutes));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+        var linked = linkedCts.Token;
 
-        var output = string.Join("\n", new[] { stdOut, stdErr }
-            .Where(s => !string.IsNullOrWhiteSpace(s)));
+        try
+        {
+            var stdOut = await process.StandardOutput.ReadToEndAsync(linked);
+            var stdErr = await process.StandardError.ReadToEndAsync(linked);
+            await process.WaitForExitAsync(linked);
 
-        return new TestResult(process.ExitCode == 0, output, process.ExitCode);
+            var output = string.Join("\n", new[] { stdOut, stdErr }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+
+            return new TestResult(process.ExitCode == 0, output, process.ExitCode);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Timeout (not caller cancellation) — kill the process and surface as timeout
+            process.Kill(entireProcessTree: true);
+            throw new OperationCanceledException(
+                $"test.sh timed out after {DefaultTimeoutMinutes} minutes.", timeoutCts.Token);
+        }
     }
 }

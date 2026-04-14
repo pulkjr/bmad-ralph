@@ -22,8 +22,16 @@ public static class ConfigLoader
         if (File.Exists(configPath))
         {
             var json = File.ReadAllText(configPath);
-            config = JsonSerializer.Deserialize<RalphLoopConfig>(json, JsonOptions)
-                     ?? new RalphLoopConfig();
+            try
+            {
+                config = JsonSerializer.Deserialize<RalphLoopConfig>(json, JsonOptions)
+                         ?? new RalphLoopConfig();
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to parse ralph-loop.json: {ex.Message}", ex);
+            }
         }
         else
         {

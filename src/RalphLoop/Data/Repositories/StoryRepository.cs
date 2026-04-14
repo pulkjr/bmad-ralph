@@ -53,6 +53,9 @@ public class StoryRepository(LedgerDb db)
 
     public async Task UpdateStatusAsync(long storyId, string status)
     {
+        if (string.IsNullOrWhiteSpace(status))
+            throw new ArgumentException("Story status must not be null or empty.", nameof(status));
+
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = "UPDATE stories SET status = @s WHERE id = @id";
         cmd.Parameters.AddWithValue("@s", status);
