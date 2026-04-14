@@ -22,7 +22,16 @@ public static class ModelResolver
         ConsoleUI ui,
         CancellationToken ct = default)
     {
-        var available = await client.ListModelsAsync(ct);
+        IList<GitHub.Copilot.SDK.ModelInfo> available;
+        try
+        {
+            available = await client.ListModelsAsync(ct);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException)
+        {
+            CopilotErrorHandler.Rethrow(ex);
+            throw; // unreachable — satisfies the compiler
+        }
 
         // Allowlist approach: a model is usable only when its policy is absent (no
         // restrictions) or explicitly "enabled". This is safer than blocklisting known

@@ -140,11 +140,24 @@ await using var sp = services.BuildServiceProvider();
 var db = sp.GetRequiredService<LedgerDb>();
 await db.OpenAsync();
 
+var ui = sp.GetRequiredService<ConsoleUI>();
 var copilotClient = sp.GetRequiredService<CopilotClient>();
-await copilotClient.StartAsync();
+try
+{
+    await copilotClient.StartAsync();
+}
+catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException)
+{
+    try { CopilotErrorHandler.Rethrow(ex); }
+    catch (InvalidOperationException friendlyEx)
+    {
+        ui.ShowError(friendlyEx.Message);
+        return 1;
+    }
+    throw;
+}
 
 var git = sp.GetRequiredService<GitManager>();
-var ui = sp.GetRequiredService<ConsoleUI>();
 
 // ── Resolve models against the user's actual Copilot subscription ──────────
 // Substitutes any unavailable model with the best available 1x alternative

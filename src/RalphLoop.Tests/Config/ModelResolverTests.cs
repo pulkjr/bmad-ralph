@@ -283,6 +283,78 @@ public class ModelResolverTests
         Assert.Contains("No models are available", ex.Message);
     }
 
+    // ── SDK error handling ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ListModels_NotAuthenticated_ThrowsFriendlyError()
+    {
+        // When the user is not signed in, the SDK throws an IOException whose message
+        // contains "Not authenticated. Please authenticate first."
+        // ModelResolver must convert this into a user-friendly InvalidOperationException
+        // that tells the user to run 'gh auth login'.
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            AutoStart = false,
+            OnListModels = _ => throw new System.IO.IOException(
+                "Communication error with Copilot CLI: Request models.list failed " +
+                "with message: Not authenticated. Please authenticate first."),
+        });
+        var models = AllSetTo("gpt-5");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ModelResolver.ResolveAsync(client, models, SilentUi()));
+
+        Assert.Contains("gh auth login", ex.Message);
+    }
+
+    [Fact]
+    public async Task ListModels_CliProcessDied_ThrowsFriendlyError()
+    {
+        // When the CLI process exits unexpectedly, the SDK wraps the failure in an
+        // IOException. ModelResolver must surface this as an actionable message.
+        var client = new CopilotClient(new CopilotClientOptions
+        {
+            AutoStart = false,
+            OnListModels = _ => throw new System.IO.IOException(
+                "CLI process exited unexpectedly.\nstderr: something went wrong"),
+        });
+        var models = AllSetTo("gpt-5");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ModelResolver.ResolveAsync(client, models, SilentUi()));
+
+        Assert.Contains("exited unexpectedly", ex.Message);
+    }
+
+    [Fact]
+    public void CopilotErrorHandler_CliNotFound_ProducesFriendlyError()
+    {
+        // When the CLI binary cannot be located, StartAsync throws an
+        // InvalidOperationException with "Copilot CLI not found".
+        // CopilotErrorHandler must convert this to an actionable message.
+        var inner = new InvalidOperationException(
+            "Copilot CLI not found at '/home/dev/.nuget/...'. " +
+            "Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath.");
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => CopilotErrorHandler.Rethrow(inner));
+
+        Assert.Contains("gh extension install", ex.Message);
+    }
+
+    [Fact]
+    public void CopilotErrorHandler_UnknownIoException_IncludesOriginalMessage()
+    {
+        // Unrecognised IOExceptions should still produce an InvalidOperationException
+        // (not a raw IOException) so Program.cs's existing catch block handles them.
+        var inner = new System.IO.IOException("some unknown transport error");
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => CopilotErrorHandler.Rethrow(inner));
+
+        Assert.Contains("some unknown transport error", ex.Message);
+    }
+
     // ── All-available happy path ───────────────────────────────────────────────
 
     [Fact]
