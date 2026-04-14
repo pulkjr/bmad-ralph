@@ -26,20 +26,29 @@ dotnet_diagnostic.CS8629.severity = warning   # Nullable value type may be null
 # ── Async / await ────────────────────────────────────────────────────────────
 dotnet_diagnostic.CS4014.severity = error     # Call not awaited (almost always a bug)
 dotnet_diagnostic.CA2007.severity = suggestion # Consider ConfigureAwait(false) (not enforced in apps)
-dotnet_diagnostic.MA0004.severity = none       # Meziantou async — not installed, suppress
 
 # ── IDisposable / resource management ────────────────────────────────────────
 dotnet_diagnostic.CA2000.severity = warning   # Dispose objects before losing scope
 dotnet_diagnostic.CA2213.severity = warning   # Disposable fields should be disposed
-dotnet_diagnostic.IDE0067.severity = warning  # Dispose pattern violation
 dotnet_diagnostic.CA1816.severity = warning   # GC.SuppressFinalize called incorrectly
 
-# ── LINQ correctness ─────────────────────────────────────────────────────────
-dotnet_diagnostic.RCS1077.severity = warning  # Optimize LINQ method chain
-dotnet_diagnostic.RCS1155.severity = warning  # Use StringComparison when comparing strings
-dotnet_diagnostic.CA1862.severity = warning   # Use StringComparison to avoid culture-sensitive comparison
+# ── Security (SonarAnalyzer.CSharp) ─────────────────────────────────────────
+dotnet_diagnostic.S2076.severity = error      # OS command injection — Process.Start with shell args
+dotnet_diagnostic.S2083.severity = error      # Path traversal — unsanitised paths used for file I/O
+dotnet_diagnostic.S2068.severity = error      # Hardcoded credentials / secrets
+dotnet_diagnostic.S2278.severity = error      # Weak encryption algorithm
+dotnet_diagnostic.S3329.severity = error      # IV reuse in cipher
+dotnet_diagnostic.S4790.severity = warning    # Weak hashing algorithm (MD5/SHA1)
+dotnet_diagnostic.S3330.severity = warning    # Cookie without HttpOnly flag
+
+# ── Dead code ────────────────────────────────────────────────────────────────
+dotnet_diagnostic.IDE0051.severity = warning  # Remove unused private member
+dotnet_diagnostic.IDE0052.severity = warning  # Remove unread private member
 
 # ── Code style ───────────────────────────────────────────────────────────────
+dotnet_diagnostic.IDE0005.severity = warning  # Remove unnecessary using directives
+dotnet_diagnostic.IDE0059.severity = warning  # Unnecessary value assignment
+dotnet_diagnostic.CA1862.severity = warning   # Use StringComparison to avoid culture-sensitive comparison
 csharp_style_var_for_built_in_types = true:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
 csharp_style_var_elsewhere = true:suggestion
@@ -73,48 +82,12 @@ dotnet_naming_symbols.async_methods.required_modifiers = async
 dotnet_naming_style.end_in_async.capitalization = pascal_case
 dotnet_naming_style.end_in_async.required_suffix = Async
 
-# ── Roslyn-specific diagnostics (RCS = Roslynator Code Style) ────────────────
-dotnet_diagnostic.RCS1036.severity = warning  # Remove unnecessary blank line
-dotnet_diagnostic.RCS1049.severity = suggestion # Simplify boolean comparison
-dotnet_diagnostic.RCS1057.severity = warning  # Add empty line between declarations
-dotnet_diagnostic.RCS1061.severity = suggestion # Merge if statements into &&
-dotnet_diagnostic.RCS1084.severity = warning  # Use coalesce expression instead of if
-dotnet_diagnostic.RCS1118.severity = warning  # Mark local variable as const
-dotnet_diagnostic.RCS1123.severity = suggestion # Add parentheses to avoid confusion
-dotnet_diagnostic.RCS1124.severity = suggestion # Inline local variable
-dotnet_diagnostic.RCS1163.severity = warning  # Unused parameter (non-test)
-dotnet_diagnostic.RCS1168.severity = warning  # Parameter name differs from base declaration
-dotnet_diagnostic.RCS1189.severity = suggestion # Add or remove region name
-dotnet_diagnostic.RCS1197.severity = warning  # Optimize StringBuilder.Append call
-dotnet_diagnostic.RCS1204.severity = warning  # Use EventArgs.Empty
-dotnet_diagnostic.RCS1233.severity = suggestion # Use short-circuit evaluation
-dotnet_diagnostic.RCS1244.severity = suggestion # Simplify default expression
-
-# Suppress in test projects — RCS1163 (unused param) fires on test methods
-# Override per-folder below.
-
-# ── IDE Roslyn (IDE = IDE suggestions, enforced at build) ────────────────────
-dotnet_diagnostic.IDE0001.severity = suggestion # Simplify name
-dotnet_diagnostic.IDE0002.severity = suggestion # Simplify member access
-dotnet_diagnostic.IDE0003.severity = suggestion # Remove 'this'
-dotnet_diagnostic.IDE0005.severity = warning   # Remove unnecessary using
-dotnet_diagnostic.IDE0028.severity = suggestion # Use collection initializer
-dotnet_diagnostic.IDE0034.severity = suggestion # Simplify default expression
-dotnet_diagnostic.IDE0044.severity = suggestion # Add readonly modifier
-dotnet_diagnostic.IDE0051.severity = warning   # Remove unused private member
-dotnet_diagnostic.IDE0052.severity = warning   # Remove unread private member
-dotnet_diagnostic.IDE0059.severity = warning   # Unnecessary value assignment
-dotnet_diagnostic.IDE0060.severity = suggestion # Remove unused parameter
-dotnet_diagnostic.IDE0063.severity = suggestion # Use simple 'using' statement
-dotnet_diagnostic.IDE0090.severity = suggestion # Use 'new(...)' expression
-dotnet_diagnostic.IDE0130.severity = suggestion # Namespace does not match folder structure
-
 # ── Test projects — relax rules that fire falsely on xUnit test methods ──────
 [src/RalphLoop.Tests/**/*.cs]
-dotnet_diagnostic.RCS1163.severity = none       # Unused parameter (data-driven test params)
-dotnet_diagnostic.IDE0060.severity = none       # Unused parameter
+dotnet_diagnostic.IDE0060.severity = none       # Unused parameter (data-driven test params)
 dotnet_diagnostic.CA1822.severity = none        # Mark as static (test methods can't be static)
 dotnet_diagnostic.CA2000.severity = none        # Dispose before scope — test helpers are intentionally short-lived
+dotnet_diagnostic.S2068.severity = none         # Hardcoded credentials — test fixtures may contain fake credentials
 
 # ── JSON / YAML ───────────────────────────────────────────────────────────────
 [*.{json,yaml,yml}]

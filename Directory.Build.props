@@ -30,24 +30,21 @@
   </PropertyGroup>
 
   <!--
-    Roslynator NuGet package — ships the RCS/RCSN diagnostics used in .editorconfig.
-    PrivateAssets=All means it is a dev-only tool: it doesn't flow into consumers of
-    the NuGet package.
+    SonarAnalyzer.CSharp — security, reliability, and code-smell rules via Roslyn.
+    Covers OS command injection (S2076), path traversal (S2083), hardcoded credentials
+    (S2068), and hundreds of reliability/maintainability rules.
+    PrivateAssets=All: dev-only, does not flow into NuGet consumers.
   -->
   <ItemGroup>
-    <PackageReference Include="Roslynator.Analyzers"
-                      Version="4.13.1"
-                      PrivateAssets="All"
-                      IncludeAssets="runtime; build; native; contentfiles; analyzers" />
-    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers"
-                      Version="4.13.1"
+    <PackageReference Include="SonarAnalyzer.CSharp"
+                      Version="10.23.0.137933"
                       PrivateAssets="All"
                       IncludeAssets="runtime; build; native; contentfiles; analyzers" />
   </ItemGroup>
 
   <!--
-    Microsoft.CodeAnalysis.NetAnalyzers is already included with .NET 10 SDK, but
-    pinning a version ensures all contributors and CI get the same rule set regardless
+    Microsoft.CodeAnalysis.NetAnalyzers is already included with the .NET 10 SDK, but
+    pinning a version ensures all contributors and CI get the same CA rule set regardless
     of SDK patch level.
   -->
   <ItemGroup>

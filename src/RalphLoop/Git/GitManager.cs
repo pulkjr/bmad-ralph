@@ -9,22 +9,24 @@ public class GitManager(string projectPath)
 {
     public async Task<bool> IsEntireEnabledAsync()
     {
-        var result = await RunAsync("entire", "status", projectPath);
+        var result = await RunAsync("entire", ["status"], projectPath);
         return result.ExitCode == 0;
     }
 
     public async Task EnableEntireAsync()
     {
-        await RunAsync("entire", "enable --agent copilot-cli --telemetry=false", projectPath);
+        await RunAsync("entire", ["enable", "--agent", "copilot-cli", "--telemetry=false"], projectPath);
     }
 
     public async Task CreateEpicBranchAsync(string branchName)
     {
-        // Checkout existing branch if it exists; create it only if it doesn't
-        var checkout = await RunAsync("git", $"checkout {branchName}", projectPath);
+        // Checkout existing branch if it exists; create it only if it doesn't.
+        // Each argument is a separate entry in ArgumentList — shell metacharacters in
+        // branchName are treated as literals, not interpreted by the shell.
+        var checkout = await RunAsync("git", ["checkout", branchName], projectPath);
         if (checkout.ExitCode != 0)
         {
-            var create = await RunAsync("git", $"checkout -b {branchName}", projectPath);
+            var create = await RunAsync("git", ["checkout", "-b", branchName], projectPath);
             if (create.ExitCode != 0)
                 throw new InvalidOperationException(
                     $"Failed to create branch '{branchName}': {create.StdErr}");
@@ -35,11 +37,12 @@ public class GitManager(string projectPath)
     {
         var message = FormatCommitMessage(storyName, epicName, round);
 
-        var addResult = await RunAsync("git", "add -A", projectPath);
+        var addResult = await RunAsync("git", ["add", "-A"], projectPath);
         if (addResult.ExitCode != 0)
             throw new InvalidOperationException($"git add failed: {addResult.StdErr}");
 
-        var commitResult = await RunWithStdinAsync("git", "commit -F -", projectPath, message);
+        // Commit message is passed via stdin (-F -), not as a shell argument — safe.
+        var commitResult = await RunWithStdinAsync("git", ["commit", "-F", "-"], projectPath, message);
         if (commitResult.ExitCode != 0)
             throw new InvalidOperationException($"git commit failed: {commitResult.StdErr}");
     }
@@ -47,18 +50,19 @@ public class GitManager(string projectPath)
     public async Task MergeEpicToMainAsync(string branchName)
     {
         // Detect the default branch (main, master, develop, trunk, etc.)
-        var symRef = await RunAsync("git", "symbolic-ref refs/remotes/origin/HEAD --short", projectPath);
+        var symRef = await RunAsync(
+            "git", ["symbolic-ref", "refs/remotes/origin/HEAD", "--short"], projectPath);
         var defaultBranch = symRef.ExitCode == 0
             ? symRef.StdOut.Trim().Replace("origin/", "")
             : "main";
 
-        var checkoutResult = await RunAsync("git", $"checkout {defaultBranch}", projectPath);
+        var checkoutResult = await RunAsync("git", ["checkout", defaultBranch], projectPath);
         if (checkoutResult.ExitCode != 0)
             throw new InvalidOperationException(
                 $"Cannot checkout default branch '{defaultBranch}': {checkoutResult.StdErr}");
 
-        // Fast-forward merge
-        var mergeResult = await RunAsync("git", $"merge --ff-only {branchName}", projectPath);
+        // Fast-forward merge — branchName is a literal token, not shell-interpreted.
+        var mergeResult = await RunAsync("git", ["merge", "--ff-only", branchName], projectPath);
         if (mergeResult.ExitCode != 0)
             throw new InvalidOperationException(
                 $"Fast-forward merge failed for branch {branchName}. " +
@@ -67,7 +71,7 @@ public class GitManager(string projectPath)
 
     public async Task<string> GetCurrentBranchAsync()
     {
-        var result = await RunAsync("git", "rev-parse --abbrev-ref HEAD", projectPath);
+        var result = await RunAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], projectPath);
         return result.StdOut.Trim();
     }
 
@@ -78,17 +82,19 @@ public class GitManager(string projectPath)
     public async Task<string> GetChangedFilesSummaryAsync()
     {
         // Try to get diff stat vs origin/HEAD; fall back to last 10 commits
-        var symRef = await RunAsync("git", "symbolic-ref refs/remotes/origin/HEAD --short", projectPath);
+        var symRef = await RunAsync(
+            "git", ["symbolic-ref", "refs/remotes/origin/HEAD", "--short"], projectPath);
         var defaultBranch = symRef.ExitCode == 0
             ? symRef.StdOut.Trim().Replace("origin/", "")
             : "main";
 
-        var diffResult = await RunAsync("git", $"diff --stat {defaultBranch}...HEAD", projectPath);
+        var diffResult = await RunAsync(
+            "git", ["diff", "--stat", $"{defaultBranch}...HEAD"], projectPath);
         if (diffResult.ExitCode == 0 && !string.IsNullOrWhiteSpace(diffResult.StdOut))
             return diffResult.StdOut.Trim();
 
         // Fallback: recent commit log
-        var logResult = await RunAsync("git", "log --oneline -10", projectPath);
+        var logResult = await RunAsync("git", ["log", "--oneline", "-10"], projectPath);
         return logResult.ExitCode == 0 ? logResult.StdOut.Trim() : "(unable to get change summary)";
     }
 
@@ -110,16 +116,12 @@ public class GitManager(string projectPath)
             """;
     }
 
-    private static string EscapeForShell(string s) =>
-        s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
-
     private static async Task<ProcessResult> RunWithStdinAsync(
-        string executable, string args, string workDir, string stdin)
+        string executable, string[] args, string workDir, string stdin)
     {
         var psi = new ProcessStartInfo
         {
             FileName = executable,
-            Arguments = args,
             WorkingDirectory = workDir,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -127,6 +129,8 @@ public class GitManager(string projectPath)
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start {executable}");
@@ -141,18 +145,20 @@ public class GitManager(string projectPath)
         return new ProcessResult(process.ExitCode, stdOut, stdErr);
     }
 
-    private static async Task<ProcessResult> RunAsync(string executable, string args, string workDir)
+    private static async Task<ProcessResult> RunAsync(
+        string executable, string[] args, string workDir)
     {
         var psi = new ProcessStartInfo
         {
             FileName = executable,
-            Arguments = args,
             WorkingDirectory = workDir,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        foreach (var arg in args)
+            psi.ArgumentList.Add(arg);
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start {executable}");
@@ -166,3 +172,4 @@ public class GitManager(string projectPath)
 
     private record ProcessResult(int ExitCode, string StdOut, string StdErr);
 }
+
