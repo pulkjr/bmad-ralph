@@ -12,15 +12,6 @@ namespace RalphLoop.Config;
 /// </summary>
 public static class ModelResolver
 {
-    // Policy state strings that mean the model cannot be used.
-    private static readonly HashSet<string> DeniedStates = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "denied",
-        "disabled",
-        "blocked",
-        "denied-by-content-exclusion-policy",
-    };
-
     /// <summary>
     /// Resolves all models in <paramref name="models"/> in-place.
     /// Logs a warning via <paramref name="ui"/> for every substitution made.
@@ -33,9 +24,11 @@ public static class ModelResolver
     {
         var available = await client.ListModelsAsync(ct);
 
-        // Build the set of usable model IDs.
+        // Allowlist approach: a model is usable only when its policy is absent (no
+        // restrictions) or explicitly "enabled". This is safer than blocklisting known
+        // denial strings — any undocumented or future state is treated as unavailable.
         var usable = available
-            .Where(m => m.Policy is null || !DeniedStates.Contains(m.Policy.State))
+            .Where(IsUsable)
             .ToList();
 
         if (usable.Count == 0)
@@ -45,7 +38,7 @@ public static class ModelResolver
 
         var usableIds = usable.Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Resolve each role's model, collecting the fields and their role labels.
+        // Resolve each role's model.
         models.Default = Resolve(models.Default, "Default (Scrum Master)", usable, usableIds, ui);
         models.Developer = Resolve(models.Developer, "Developer", usable, usableIds, ui);
         models.Architect = Resolve(models.Architect, "Architect", usable, usableIds, ui);
@@ -69,6 +62,15 @@ public static class ModelResolver
             }
         }
     }
+
+    /// <summary>
+    /// A model is usable when it has no policy (unrestricted) or its policy state is
+    /// explicitly "enabled". Any other state — including empty string, "disabled",
+    /// "denied", or any future state — is treated as unavailable.
+    /// </summary>
+    private static bool IsUsable(ModelInfo m) =>
+        m.Policy is null ||
+        m.Policy.State.Equals("enabled", StringComparison.OrdinalIgnoreCase);
 
     private static string Resolve(
         string configured,
