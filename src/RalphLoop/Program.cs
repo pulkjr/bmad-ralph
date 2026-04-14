@@ -134,6 +134,7 @@ Console.CancelKeyPress += (_, e) =>
 try
 {
     await ModelResolver.ResolveAsync(copilotClient, config.Models, ui, cts.Token);
+    ui.ShowModelSummary(config.Models);
 }
 catch (InvalidOperationException ex)
 {

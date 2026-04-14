@@ -28,6 +28,8 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
     {
         Exception? lastException = null;
 
+        ui.ShowAgentIntro(agentLabel, config.Model);
+
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
             if (attempt > 1)
@@ -39,7 +41,9 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
 
             try
             {
-                return await RunOnceAsync(config, prompt, agentLabel, ct);
+                var result = await RunOnceAsync(config, prompt, agentLabel, ct);
+                ui.ShowAgentTokenSummary(agentLabel, result.TokensUsed);
+                return result;
             }
             catch (OperationCanceledException)
             {

@@ -32,6 +32,8 @@ public class PartyModeSession(CopilotClient client, SessionFactory factory, Cons
                 return new UserInputResponse { Answer = answer, WasFreeform = true };
             });
 
+        ui.ShowPartyRoster(personas, config.Model);
+
         var runner = new AgentRunner(client, ui);
         return await runner.RunAsync(config, prompt, sessionLabel, ct);
     }

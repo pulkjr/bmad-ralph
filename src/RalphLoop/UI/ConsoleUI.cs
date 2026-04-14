@@ -1,3 +1,5 @@
+using GitHub.Copilot.SDK;
+using RalphLoop.Config;
 using Spectre.Console;
 
 namespace RalphLoop.UI;
@@ -119,5 +121,72 @@ public class ConsoleUI
             .Spinner(Spinner.Known.Dots)
             .SpinnerStyle(Style.Parse("blue"))
             .StartAsync(message, async _ => await action());
+    }
+
+    public void ShowAgentIntro(string agentName, string? model)
+    {
+        AnsiConsole.WriteLine();
+        var modelLine = string.IsNullOrWhiteSpace(model) ? "" : $"\n[grey]Model: {Markup.Escape(model)}[/]";
+        AnsiConsole.Write(new Panel(
+            new Markup($"[bold white]{Markup.Escape(agentName)}[/]{modelLine}"))
+        {
+            Border = BoxBorder.Rounded,
+            BorderStyle = new Style(Color.Blue),
+            Padding = new Padding(1, 0),
+        });
+    }
+
+    public void ShowAgentTokenSummary(string agentLabel, long tokens)
+    {
+        AnsiConsole.MarkupLine(
+            $"[grey][[{Markup.Escape(agentLabel)}]][/] [dim]✦ {tokens:N0} tokens used[/]");
+    }
+
+    public void ShowPartyRoster(IReadOnlyList<CustomAgentConfig> personas, string? model)
+    {
+        AnsiConsole.WriteLine();
+        var modelLabel = string.IsNullOrWhiteSpace(model) ? "" : $"  [grey]Model: {Markup.Escape(model)}[/]";
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderStyle(new Style(Color.Yellow))
+            .Title($"[bold yellow]Party Mode — {personas.Count} Participant(s)[/]{modelLabel}")
+            .AddColumn(new TableColumn("[bold]Persona[/]"))
+            .AddColumn(new TableColumn("[bold]Role[/]"))
+            .AddColumn(new TableColumn("[bold]Purpose[/]"));
+
+        foreach (var p in personas)
+        {
+            table.AddRow(
+                $"[bold cyan]{Markup.Escape(p.DisplayName ?? p.Name)}[/]",
+                Markup.Escape(p.Name),
+                Markup.Escape(p.Description ?? string.Empty));
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+    }
+
+    public void ShowModelSummary(ModelsConfig models)
+    {
+        AnsiConsole.WriteLine();
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderStyle(new Style(Color.Grey))
+            .Title("[bold grey]Role → Model Configuration[/]")
+            .AddColumn(new TableColumn("[bold]Role[/]"))
+            .AddColumn(new TableColumn("[bold]Model[/]"));
+
+        table.AddRow("Developer", Markup.Escape(models.Developer));
+        table.AddRow("Architect", Markup.Escape(models.Architect));
+        table.AddRow("Product Manager", Markup.Escape(models.ProductManager));
+        table.AddRow("QA", Markup.Escape(models.Qa));
+        table.AddRow("Security", Markup.Escape(models.Security));
+        table.AddRow("Tech Writer", Markup.Escape(models.TechWriter));
+        table.AddRow("UX Designer", Markup.Escape(models.UxDesigner));
+        table.AddRow("Party Mode", Markup.Escape(models.PartyMode));
+        table.AddRow("Scrum Master", Markup.Escape(models.Default));
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
     }
 }
