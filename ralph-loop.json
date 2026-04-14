@@ -1,0 +1,25 @@
+{
+  "projectPath": "/projects",
+  "ledgerDbPath": "/projects/ledger.db",
+  "skillDirectories": {
+    "shared": "~/.bmad/skills",
+    "project": ".bmad-core/skills"
+  },
+  "models": {
+    "default": "gpt-5",
+    "developer": "gpt-5.3-codex",
+    "architect": "claude-sonnet-4.6",
+    "productManager": "claude-sonnet-4.6",
+    "qa": "claude-sonnet-4.6",
+    "security": "gpt-5",
+    "techWriter": "claude-sonnet-4.5",
+    "uxDesigner": "claude-sonnet-4.5",
+    "partyMode": "claude-sonnet-4.6"
+  },
+  "git": {
+    "autoCommit": true,
+    "mergeStrategy": "fast-forward",
+    "useEntire": true
+  },
+  "maxQaFailsBeforeSwarm": 3
+}

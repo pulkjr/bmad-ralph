@@ -1,0 +1,164 @@
+﻿using GitHub.Copilot.SDK;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using RalphLoop.Agents;
+using RalphLoop.Build;
+using RalphLoop.Config;
+using RalphLoop.Data;
+using RalphLoop.Data.Repositories;
+using RalphLoop.Git;
+using RalphLoop.Loop;
+using RalphLoop.Loop.Phases;
+using RalphLoop.UI;
+using Spectre.Console;
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+AnsiConsole.Write(new FigletText("Ralph Loop").Color(Color.Blue));
+AnsiConsole.MarkupLine("[grey]BMAD Agentic Development Loop — powered by GitHub Copilot SDK[/]");
+AnsiConsole.WriteLine();
+
+// ── Resolve project path (first arg or cwd) ────────────────────────────────
+var projectPath = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
+
+if (!Directory.Exists(projectPath))
+{
+    AnsiConsole.MarkupLine($"[red]Project path not found: {projectPath}[/]");
+    return 1;
+}
+
+// ── Load config ────────────────────────────────────────────────────────────
+RalphLoopConfig config;
+try
+{
+    config = ConfigLoader.Load(projectPath);
+}
+catch (Exception ex)
+{
+    AnsiConsole.MarkupLine($"[red]Failed to load ralph-loop.json: {ex.Message}[/]");
+    return 1;
+}
+
+// ── Validate prerequisites ─────────────────────────────────────────────────
+var prereqErrors = new List<string>();
+foreach (var (cmd, arg) in new (string, string)[] { ("git", "--version"), ("bash", "--version") })
+{
+    try
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(cmd, arg)
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true,
+            UseShellExecute = false, CreateNoWindow = true,
+        };
+        using var proc = System.Diagnostics.Process.Start(psi);
+        proc?.WaitForExit(3000);
+        if (proc?.ExitCode != 0)
+            prereqErrors.Add($"'{cmd}' did not exit cleanly.");
+    }
+    catch
+    {
+        prereqErrors.Add($"'{cmd}' is not installed or not on PATH.");
+    }
+}
+
+if (prereqErrors.Count > 0)
+{
+    foreach (var err in prereqErrors)
+        AnsiConsole.MarkupLine($"[red]Prerequisite check failed: {Markup.Escape(err)}[/]");
+    return 1;
+}
+
+// ── Wire up dependencies ───────────────────────────────────────────────────
+var services = new ServiceCollection();
+
+services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+
+// Infrastructure
+services.AddSingleton(config);
+services.AddSingleton<ConsoleUI>();
+services.AddSingleton(_ => new LedgerDb(config.LedgerDbPath));
+services.AddSingleton<SprintRepository>();
+services.AddSingleton<EpicRepository>();
+services.AddSingleton<StoryRepository>();
+
+// Git + build
+services.AddSingleton(_ => new GitManager(config.ProjectPath));
+services.AddSingleton(_ => new TestScriptRunner(config.ProjectPath));
+services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
+
+// Copilot SDK
+services.AddSingleton(_ => new CopilotClient(new CopilotClientOptions
+{
+    Cwd = config.ProjectPath,
+    LogLevel = "warn",
+}));
+
+// Agents
+services.AddSingleton<SessionFactory>();
+services.AddSingleton<AgentRunner>();
+services.AddSingleton<PartyModeSession>();
+
+// Phases
+services.AddSingleton<SprintPlanningPhase>();
+services.AddSingleton<SprintReviewPhase>();
+services.AddSingleton<StoryLoopPhase>();
+services.AddSingleton<EpicCompletionPhase>();
+services.AddSingleton<RetrospectivePhase>();
+
+// Orchestrator
+services.AddSingleton<RalphLoopOrchestrator>();
+
+await using var sp = services.BuildServiceProvider();
+
+// ── Async initialization (after DI build — avoids sync-over-async deadlocks) ──
+var db = sp.GetRequiredService<LedgerDb>();
+await db.OpenAsync();
+
+var copilotClient = sp.GetRequiredService<CopilotClient>();
+await copilotClient.StartAsync();
+
+// ── Check entire.io ────────────────────────────────────────────────────────
+var git = sp.GetRequiredService<GitManager>();
+var ui = sp.GetRequiredService<ConsoleUI>();
+
+if (config.Git.UseEntire && !await git.IsEntireEnabledAsync())
+{
+    ui.ShowWarning("entire.io is not enabled for this repository.");
+    if (ui.Confirm("Enable entire.io now? (Recommended for session capture)"))
+    {
+        await git.EnableEntireAsync();
+        ui.ShowSuccess("entire.io enabled.");
+    }
+}
+
+// ── Run ────────────────────────────────────────────────────────────────────
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    ui.ShowWarning("Cancellation requested — finishing current step...");
+    cts.Cancel();
+};
+
+try
+{
+    var orchestrator = sp.GetRequiredService<RalphLoopOrchestrator>();
+    await orchestrator.RunAsync(cts.Token);
+    return 0;
+}
+catch (OperationCanceledException)
+{
+    ui.ShowWarning("Ralph Loop was cancelled.");
+    return 130;
+}
+catch (Exception ex)
+{
+    ui.ShowError($"Fatal error: {ex.Message}");
+    AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
+    return 1;
+}
+finally
+{
+    var client = sp.GetRequiredService<CopilotClient>();
+    await client.StopAsync();
+}
