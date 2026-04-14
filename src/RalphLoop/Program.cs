@@ -90,7 +90,7 @@ services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
 services.AddSingleton(_ => new CopilotClient(new CopilotClientOptions
 {
     Cwd = config.ProjectPath,
-    LogLevel = "warn",
+    LogLevel = CopilotLogLevel.Default,
 }));
 
 // Agents

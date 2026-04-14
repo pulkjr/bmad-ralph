@@ -8,6 +8,97 @@ complete.
 
 ---
 
+## Getting Started on a New System
+
+### 1. Install system dependencies
+
+| Dependency | Minimum version | Notes |
+| ---------- | --------------- | ----- |
+| [.NET SDK](https://dotnet.microsoft.com/download) | 8.0 | Required to run or build Ralph Loop |
+| `git` | any recent | Must be on `PATH` |
+| `bash` | any recent | Must be on `PATH` (Git Bash works on Windows) |
+| [`entire`](https://entire.io) | latest | Optional but recommended for session capture |
+
+### 2. Install the `ralph-loop` tool
+
+**From NuGet (recommended):**
+```bash
+dotnet tool install --global RalphLoop
+```
+
+**From source:**
+```bash
+git clone <repo-url>
+cd ralph-loop
+dotnet tool install --global --add-source ./src/RalphLoop/bin/Release RalphLoop
+# or run directly without installing:
+dotnet run --project src/RalphLoop -- [project-path]
+```
+
+Verify the installation:
+```bash
+ralph-loop --version
+```
+
+### 3. Create `ralph-loop.json`
+
+Place a `ralph-loop.json` in the root of the project you want Ralph Loop to build.
+At minimum, you only need an empty object — all values have defaults:
+
+```json
+{}
+```
+
+A more complete starting config:
+```json
+{
+  "projectPath": ".",
+  "git": {
+    "autoCommit": true,
+    "mergeStrategy": "fast-forward",
+    "useEntire": true
+  }
+}
+```
+
+See the [Configuration](#configuration-ralph-loopjson) section for all available keys.
+
+### 4. Add BMAD planning artifacts
+
+Create the `_bmad-output/` directory (or the path set in `_bmad/bmm/config.yaml`) and
+add your planning documents:
+
+```
+_bmad-output/
+├── prd.md                        # Product Requirements Document (required)
+├── architecture.md               # Architectural decisions (required)
+├── project-context.md            # Project conventions (required)
+└── ux-design-specification.md    # UX spec (optional — enables UX agent & smoke tests)
+```
+
+### 5. Run Ralph Loop
+
+From your project root:
+```bash
+ralph-loop
+```
+
+Or pass the project path explicitly:
+```bash
+ralph-loop /path/to/your/project
+```
+
+Ralph Loop will:
+1. Validate prerequisites (`git`, `bash`)
+2. Open (or create) `ledger.db`
+3. Start the GitHub Copilot SDK process
+4. Optionally prompt to enable `entire` session capture
+5. Enter the sprint planning → review → story loop → retrospective cycle
+
+Press `Ctrl+C` at any time to stop gracefully. Re-running the same command resumes from where it left off.
+
+---
+
 ## Prerequisites
 
 - `git` on `PATH`

@@ -1,2 +1,2 @@
-/src/RalphLoop/obj/*
-/src/RalphLoop/bin/*
+/src/*/obj/*
+/src/*/bin/*
