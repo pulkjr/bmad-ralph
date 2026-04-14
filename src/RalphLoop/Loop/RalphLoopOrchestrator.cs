@@ -20,7 +20,8 @@ public class RalphLoopOrchestrator(
     EpicRepository epics,
     StoryRepository stories,
     ConsoleUI ui,
-    RalphLoopConfig config)
+    RalphLoopConfig config
+)
 {
     public async Task RunAsync(CancellationToken ct = default)
     {
@@ -56,7 +57,8 @@ public class RalphLoopOrchestrator(
 
         foreach (var epic in epicList)
         {
-            if (ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested)
+                break;
 
             try
             {
@@ -83,7 +85,8 @@ public class RalphLoopOrchestrator(
         // Load or create stories for this epic
         var storyList = (await stories.GetByEpicAsync(epic.Id))
             .Where(s => s.Status is not StoryStatus.Complete)
-            .OrderBy(s => s.OrderIndex).ThenBy(s => s.Id)
+            .OrderBy(s => s.OrderIndex)
+            .ThenBy(s => s.Id)
             .ToList();
 
         if (storyList.Count == 0)

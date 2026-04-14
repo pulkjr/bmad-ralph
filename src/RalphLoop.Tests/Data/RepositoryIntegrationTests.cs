@@ -95,8 +95,7 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         var repo = new SprintRepository(_db);
         var id = await repo.InsertAsync("S");
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => repo.UpdateStatusAsync(id, status!));
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.UpdateStatusAsync(id, status!));
     }
 
     [Fact]
@@ -338,8 +337,7 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         var repo = new StoryRepository(_db);
         var storyId = await repo.InsertAsync(epicId, "S", "", "", 0);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => repo.UpdateStatusAsync(storyId, status!));
+        await Assert.ThrowsAsync<ArgumentException>(() => repo.UpdateStatusAsync(storyId, status!));
     }
 
     [Fact]
@@ -484,8 +482,9 @@ public class RepositoryIntegrationTests : IAsyncLifetime
             VALUES (99999, 'orphan', '', '', 0, 'pending')
             """;
 
-        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
-            () => cmd.ExecuteNonQueryAsync());
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() =>
+            cmd.ExecuteNonQueryAsync()
+        );
     }
 
     [Fact]
@@ -501,8 +500,9 @@ public class RepositoryIntegrationTests : IAsyncLifetime
             VALUES (99999, 'orphan epic', '', 'pending')
             """;
 
-        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
-            () => cmd.ExecuteNonQueryAsync());
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() =>
+            cmd.ExecuteNonQueryAsync()
+        );
     }
 
     // ── StoryRepository additional coverage ───────────────────────────────────
@@ -571,8 +571,7 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         var storyRepo = new StoryRepository(_db);
         var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => storyRepo.UpdateStatusAsync(storyId, ""));
+        await Assert.ThrowsAsync<ArgumentException>(() => storyRepo.UpdateStatusAsync(storyId, ""));
     }
 
     [Fact]
@@ -582,8 +581,9 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         var storyRepo = new StoryRepository(_db);
         var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => storyRepo.UpdateStatusAsync(storyId, "   "));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            storyRepo.UpdateStatusAsync(storyId, "   ")
+        );
     }
 
     // ── LedgerDb ──────────────────────────────────────────────────────────────

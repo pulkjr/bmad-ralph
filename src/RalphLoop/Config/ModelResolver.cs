@@ -20,7 +20,8 @@ public static class ModelResolver
         CopilotClient client,
         ModelsConfig models,
         ConsoleUI ui,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         IList<GitHub.Copilot.SDK.ModelInfo> available;
         try
@@ -36,14 +37,13 @@ public static class ModelResolver
         // Allowlist approach: a model is usable only when its policy is absent (no
         // restrictions) or explicitly "enabled". This is safer than blocklisting known
         // denial strings — any undocumented or future state is treated as unavailable.
-        var usable = available
-            .Where(IsUsable)
-            .ToList();
+        var usable = available.Where(IsUsable).ToList();
 
         if (usable.Count == 0)
             throw new InvalidOperationException(
-                "No models are available on this Copilot subscription. " +
-                "Check your GitHub Copilot access and try again.");
+                "No models are available on this Copilot subscription. "
+                    + "Check your GitHub Copilot access and try again."
+            );
 
         var usableIds = usable.Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -51,7 +51,13 @@ public static class ModelResolver
         models.Default = Resolve(models.Default, "Default (Scrum Master)", usable, usableIds, ui);
         models.Developer = Resolve(models.Developer, "Developer", usable, usableIds, ui);
         models.Architect = Resolve(models.Architect, "Architect", usable, usableIds, ui);
-        models.ProductManager = Resolve(models.ProductManager, "Product Manager", usable, usableIds, ui);
+        models.ProductManager = Resolve(
+            models.ProductManager,
+            "Product Manager",
+            usable,
+            usableIds,
+            ui
+        );
         models.Qa = Resolve(models.Qa, "QA", usable, usableIds, ui);
         models.Security = Resolve(models.Security, "Security", usable, usableIds, ui);
         models.TechWriter = Resolve(models.TechWriter, "Tech Writer", usable, usableIds, ui);
@@ -61,12 +67,17 @@ public static class ModelResolver
         // Enforce QA ≠ Developer — diverse models produce more reliable acceptance reviews.
         if (models.Qa.Equals(models.Developer, StringComparison.OrdinalIgnoreCase))
         {
-            var alternate = BestFallback(usable, preferSameProvider: null, exclude: models.Developer);
+            var alternate = BestFallback(
+                usable,
+                preferSameProvider: null,
+                exclude: models.Developer
+            );
             if (alternate is not null)
             {
                 ui.ShowWarning(
-                    $"QA and Developer resolved to the same model ('{models.Qa}'). " +
-                    $"Assigning '{alternate}' to QA for independent verification.");
+                    $"QA and Developer resolved to the same model ('{models.Qa}'). "
+                        + $"Assigning '{alternate}' to QA for independent verification."
+                );
                 models.Qa = alternate;
             }
         }
@@ -78,15 +89,15 @@ public static class ModelResolver
     /// "denied", or any future state — is treated as unavailable.
     /// </summary>
     private static bool IsUsable(ModelInfo m) =>
-        m.Policy is null ||
-        m.Policy.State.Equals("enabled", StringComparison.OrdinalIgnoreCase);
+        m.Policy is null || m.Policy.State.Equals("enabled", StringComparison.OrdinalIgnoreCase);
 
     private static string Resolve(
         string configured,
         string roleLabel,
         List<ModelInfo> usable,
         HashSet<string> usableIds,
-        ConsoleUI ui)
+        ConsoleUI ui
+    )
     {
         if (usableIds.Contains(configured))
             return configured;
@@ -94,20 +105,29 @@ public static class ModelResolver
         // Try to pick a fallback that:
         //   1. Is 1x (Billing.Multiplier <= 1.5 or Billing is null — standard pricing)
         //   2. Prefers the same provider prefix (gpt-* or claude-*)
-        var fallback = BestFallback(usable, preferSameProvider: ProviderPrefix(configured), exclude: null);
+        var fallback = BestFallback(
+            usable,
+            preferSameProvider: ProviderPrefix(configured),
+            exclude: null
+        );
         fallback ??= usable[0].Id; // last resort: anything usable
 
-        ui.ShowWarning($"Model '{configured}' is not available — using '{fallback}' for [{roleLabel}].");
+        ui.ShowWarning(
+            $"Model '{configured}' is not available — using '{fallback}' for [{roleLabel}]."
+        );
         return fallback;
     }
 
     private static string? BestFallback(
         List<ModelInfo> usable,
         string? preferSameProvider,
-        string? exclude)
+        string? exclude
+    )
     {
         var candidates = usable
-            .Where(m => exclude is null || !m.Id.Equals(exclude, StringComparison.OrdinalIgnoreCase))
+            .Where(m =>
+                exclude is null || !m.Id.Equals(exclude, StringComparison.OrdinalIgnoreCase)
+            )
             .Where(m => m.Billing is null || m.Billing.Multiplier <= 1.5)
             .ToList();
 
@@ -115,7 +135,9 @@ public static class ModelResolver
         {
             // No 1x model available; fall back to anything that isn't excluded.
             candidates = usable
-                .Where(m => exclude is null || !m.Id.Equals(exclude, StringComparison.OrdinalIgnoreCase))
+                .Where(m =>
+                    exclude is null || !m.Id.Equals(exclude, StringComparison.OrdinalIgnoreCase)
+                )
                 .ToList();
         }
 
@@ -125,8 +147,9 @@ public static class ModelResolver
         // Prefer same provider (gpt- → gpt-, claude- → claude-).
         if (preferSameProvider is not null)
         {
-            var sameProvider = candidates.FirstOrDefault(
-                m => m.Id.StartsWith(preferSameProvider, StringComparison.OrdinalIgnoreCase));
+            var sameProvider = candidates.FirstOrDefault(m =>
+                m.Id.StartsWith(preferSameProvider, StringComparison.OrdinalIgnoreCase)
+            );
             if (sameProvider is not null)
                 return sameProvider.Id;
         }
@@ -136,9 +159,12 @@ public static class ModelResolver
 
     private static string? ProviderPrefix(string modelId)
     {
-        if (modelId.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase)) return "gpt-";
-        if (modelId.StartsWith("claude-", StringComparison.OrdinalIgnoreCase)) return "claude-";
-        if (modelId.StartsWith("o", StringComparison.OrdinalIgnoreCase)) return "o";
+        if (modelId.StartsWith("gpt-", StringComparison.OrdinalIgnoreCase))
+            return "gpt-";
+        if (modelId.StartsWith("claude-", StringComparison.OrdinalIgnoreCase))
+            return "claude-";
+        if (modelId.StartsWith("o", StringComparison.OrdinalIgnoreCase))
+            return "o";
         return null;
     }
 }

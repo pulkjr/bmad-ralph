@@ -21,7 +21,13 @@ public class StoryRepository(LedgerDb db)
         return list;
     }
 
-    public async Task<long> InsertAsync(long epicId, string name, string description, string acceptanceCriteria, int orderIndex)
+    public async Task<long> InsertAsync(
+        long epicId,
+        string name,
+        string description,
+        string acceptanceCriteria,
+        int orderIndex
+    )
     {
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = """
@@ -99,12 +105,18 @@ public class StoryRepository(LedgerDb db)
     public async Task MarkCompleteAsync(long storyId)
     {
         await using var cmd = db.Connection.CreateCommand();
-        cmd.CommandText = "UPDATE stories SET status = 'complete', end_time = datetime('now') WHERE id = @id";
+        cmd.CommandText =
+            "UPDATE stories SET status = 'complete', end_time = datetime('now') WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", storyId);
         await cmd.ExecuteNonQueryAsync();
     }
 
-    public async Task AddEventAsync(long storyId, string eventType, string details = "", long tokens = 0)
+    public async Task AddEventAsync(
+        long storyId,
+        string eventType,
+        string details = "",
+        long tokens = 0
+    )
     {
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = """
@@ -127,22 +139,32 @@ public class StoryRepository(LedgerDb db)
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static Story MapStory(SqliteDataReader r) => new()
-    {
-        Id = r.GetInt64(r.GetOrdinal("id")),
-        EpicId = r.GetInt64(r.GetOrdinal("epic_id")),
-        Name = r.GetString(r.GetOrdinal("name")),
-        Description = r.GetString(r.GetOrdinal("description")),
-        OrderIndex = r.GetInt32(r.GetOrdinal("order_index")),
-        Status = r.GetString(r.GetOrdinal("status")),
-        StartTime = r.IsDBNull(r.GetOrdinal("start_time")) ? null
-            : DateTime.Parse(r.GetString(r.GetOrdinal("start_time")), System.Globalization.CultureInfo.InvariantCulture),
-        EndTime = r.IsDBNull(r.GetOrdinal("end_time")) ? null
-            : DateTime.Parse(r.GetString(r.GetOrdinal("end_time")), System.Globalization.CultureInfo.InvariantCulture),
-        Rounds = r.GetInt32(r.GetOrdinal("rounds")),
-        FailCount = r.GetInt32(r.GetOrdinal("fail_count")),
-        TokensUsed = r.GetInt64(r.GetOrdinal("tokens_used")),
-        AcceptanceCriteria = r.IsDBNull(r.GetOrdinal("acceptance_criteria")) ? string.Empty
-            : r.GetString(r.GetOrdinal("acceptance_criteria")),
-    };
+    private static Story MapStory(SqliteDataReader r) =>
+        new()
+        {
+            Id = r.GetInt64(r.GetOrdinal("id")),
+            EpicId = r.GetInt64(r.GetOrdinal("epic_id")),
+            Name = r.GetString(r.GetOrdinal("name")),
+            Description = r.GetString(r.GetOrdinal("description")),
+            OrderIndex = r.GetInt32(r.GetOrdinal("order_index")),
+            Status = r.GetString(r.GetOrdinal("status")),
+            StartTime = r.IsDBNull(r.GetOrdinal("start_time"))
+                ? null
+                : DateTime.Parse(
+                    r.GetString(r.GetOrdinal("start_time")),
+                    System.Globalization.CultureInfo.InvariantCulture
+                ),
+            EndTime = r.IsDBNull(r.GetOrdinal("end_time"))
+                ? null
+                : DateTime.Parse(
+                    r.GetString(r.GetOrdinal("end_time")),
+                    System.Globalization.CultureInfo.InvariantCulture
+                ),
+            Rounds = r.GetInt32(r.GetOrdinal("rounds")),
+            FailCount = r.GetInt32(r.GetOrdinal("fail_count")),
+            TokensUsed = r.GetInt64(r.GetOrdinal("tokens_used")),
+            AcceptanceCriteria = r.IsDBNull(r.GetOrdinal("acceptance_criteria"))
+                ? string.Empty
+                : r.GetString(r.GetOrdinal("acceptance_criteria")),
+        };
 }

@@ -14,7 +14,8 @@ public class EpicRepository(LedgerDb db)
             """;
         cmd.Parameters.AddWithValue("@s", sprintId);
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync()) return null;
+        if (!await reader.ReadAsync())
+            return null;
         return MapEpic(reader);
     }
 
@@ -66,23 +67,33 @@ public class EpicRepository(LedgerDb db)
     public async Task MarkCompleteAsync(long epicId)
     {
         await using var cmd = db.Connection.CreateCommand();
-        cmd.CommandText = "UPDATE epics SET status = 'complete', end_time = datetime('now') WHERE id = @id";
+        cmd.CommandText =
+            "UPDATE epics SET status = 'complete', end_time = datetime('now') WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", epicId);
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static Epic MapEpic(SqliteDataReader r) => new()
-    {
-        Id = r.GetInt64(r.GetOrdinal("id")),
-        SprintId = r.GetInt64(r.GetOrdinal("sprint_id")),
-        Name = r.GetString(r.GetOrdinal("name")),
-        Description = r.GetString(r.GetOrdinal("description")),
-        Status = r.GetString(r.GetOrdinal("status")),
-        BranchName = r.GetString(r.GetOrdinal("branch_name")),
-        StartTime = r.IsDBNull(r.GetOrdinal("start_time")) ? null
-            : DateTime.Parse(r.GetString(r.GetOrdinal("start_time")), System.Globalization.CultureInfo.InvariantCulture),
-        EndTime = r.IsDBNull(r.GetOrdinal("end_time")) ? null
-            : DateTime.Parse(r.GetString(r.GetOrdinal("end_time")), System.Globalization.CultureInfo.InvariantCulture),
-        Round = r.GetInt32(r.GetOrdinal("round")),
-    };
+    private static Epic MapEpic(SqliteDataReader r) =>
+        new()
+        {
+            Id = r.GetInt64(r.GetOrdinal("id")),
+            SprintId = r.GetInt64(r.GetOrdinal("sprint_id")),
+            Name = r.GetString(r.GetOrdinal("name")),
+            Description = r.GetString(r.GetOrdinal("description")),
+            Status = r.GetString(r.GetOrdinal("status")),
+            BranchName = r.GetString(r.GetOrdinal("branch_name")),
+            StartTime = r.IsDBNull(r.GetOrdinal("start_time"))
+                ? null
+                : DateTime.Parse(
+                    r.GetString(r.GetOrdinal("start_time")),
+                    System.Globalization.CultureInfo.InvariantCulture
+                ),
+            EndTime = r.IsDBNull(r.GetOrdinal("end_time"))
+                ? null
+                : DateTime.Parse(
+                    r.GetString(r.GetOrdinal("end_time")),
+                    System.Globalization.CultureInfo.InvariantCulture
+                ),
+            Round = r.GetInt32(r.GetOrdinal("round")),
+        };
 }

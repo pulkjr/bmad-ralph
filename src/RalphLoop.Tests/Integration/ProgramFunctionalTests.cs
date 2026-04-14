@@ -21,10 +21,10 @@ public class ProgramFunctionalTests : IDisposable
     /// Because the test project references the main project, MSBuild copies its output
     /// (RalphLoop.dll) into the test runner's bin directory.
     /// </summary>
-    private static readonly string RalphLoopDll =
-        Path.Combine(
-            Path.GetDirectoryName(typeof(LedgerDb).Assembly.Location)!,
-            "RalphLoop.dll");
+    private static readonly string RalphLoopDll = Path.Combine(
+        Path.GetDirectoryName(typeof(LedgerDb).Assembly.Location)!,
+        "RalphLoop.dll"
+    );
 
     public ProgramFunctionalTests()
     {
@@ -54,8 +54,10 @@ public class ProgramFunctionalTests : IDisposable
 
         await RunAsync("--version");
 
-        Assert.False(File.Exists(ledgerPath),
-            $"ledger.db was unexpectedly created at {ledgerPath}");
+        Assert.False(
+            File.Exists(ledgerPath),
+            $"ledger.db was unexpectedly created at {ledgerPath}"
+        );
     }
 
     // ── --help ────────────────────────────────────────────────────────────────
@@ -75,15 +77,18 @@ public class ProgramFunctionalTests : IDisposable
 
         await RunAsync("--help");
 
-        Assert.False(File.Exists(ledgerPath),
-            $"ledger.db was unexpectedly created at {ledgerPath}");
+        Assert.False(
+            File.Exists(ledgerPath),
+            $"ledger.db was unexpectedly created at {ledgerPath}"
+        );
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(
         string argument,
-        int timeoutMs = 15_000)
+        int timeoutMs = 15_000
+    )
     {
         // Run: dotnet exec /path/to/RalphLoop.dll <argument>
         // Working directory is _tempDir so any accidental file creation lands there.
@@ -96,7 +101,8 @@ public class ProgramFunctionalTests : IDisposable
             CreateNoWindow = true,
         };
 
-        using var proc = Process.Start(psi)
+        using var proc =
+            Process.Start(psi)
             ?? throw new InvalidOperationException("Failed to start dotnet process.");
 
         using var cts = new CancellationTokenSource(timeoutMs);
@@ -112,8 +118,7 @@ public class ProgramFunctionalTests : IDisposable
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
             proc.Kill(entireProcessTree: true);
-            throw new TimeoutException(
-                $"ralph-loop {argument} did not exit within {timeoutMs}ms.");
+            throw new TimeoutException($"ralph-loop {argument} did not exit within {timeoutMs}ms.");
         }
     }
 }

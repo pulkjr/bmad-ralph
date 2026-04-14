@@ -19,7 +19,8 @@ public class PartyModeSession(CopilotClient client, SessionFactory factory, Cons
         IReadOnlyList<CustomAgentConfig> personas,
         string prompt,
         string sessionLabel = "Party Mode",
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         ui.ShowSection($"🎉 {sessionLabel}");
 
@@ -28,9 +29,12 @@ public class PartyModeSession(CopilotClient client, SessionFactory factory, Cons
             AgentRunner.ApproveAll(),
             async (req, _) =>
             {
-                var answer = await ui.WaitForUserInputAsync(req.Question ?? "Team needs your input:");
+                var answer = await ui.WaitForUserInputAsync(
+                    req.Question ?? "Team needs your input:"
+                );
                 return new UserInputResponse { Answer = answer, WasFreeform = true };
-            });
+            }
+        );
 
         ui.ShowPartyRoster(personas, config.Model);
 

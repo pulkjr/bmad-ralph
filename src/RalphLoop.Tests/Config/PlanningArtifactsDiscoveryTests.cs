@@ -95,7 +95,10 @@ public class PlanningArtifactsDiscoveryTests : IDisposable
     [Fact]
     public void Discover_ValidationReportUsedWhenNoPrdMdOrDistillate()
     {
-        File.WriteAllText(Path.Combine(_dir, "validation-report-prd-2026-04-10.md"), "# Validation");
+        File.WriteAllText(
+            Path.Combine(_dir, "validation-report-prd-2026-04-10.md"),
+            "# Validation"
+        );
 
         var result = PlanningArtifacts.Discover(_dir);
 
@@ -145,7 +148,10 @@ public class PlanningArtifactsDiscoveryTests : IDisposable
     public void Discover_ImplementationReadinessReport_UsedWhenNoArchMdOrDistillate()
     {
         File.WriteAllText(Path.Combine(_dir, "epics.md"), "# Epics");
-        File.WriteAllText(Path.Combine(_dir, "implementation-readiness-report-2026-04-14-v2.md"), "report");
+        File.WriteAllText(
+            Path.Combine(_dir, "implementation-readiness-report-2026-04-14-v2.md"),
+            "report"
+        );
 
         var result = PlanningArtifacts.Discover(_dir);
 
@@ -156,9 +162,18 @@ public class PlanningArtifactsDiscoveryTests : IDisposable
     public void Discover_MultipleReadinessReports_MostRecentSelected()
     {
         File.WriteAllText(Path.Combine(_dir, "epics.md"), "# Epics");
-        File.WriteAllText(Path.Combine(_dir, "implementation-readiness-report-2026-04-10.md"), "old");
-        File.WriteAllText(Path.Combine(_dir, "implementation-readiness-report-2026-04-14.md"), "mid");
-        File.WriteAllText(Path.Combine(_dir, "implementation-readiness-report-2026-04-14-v2.md"), "newest");
+        File.WriteAllText(
+            Path.Combine(_dir, "implementation-readiness-report-2026-04-10.md"),
+            "old"
+        );
+        File.WriteAllText(
+            Path.Combine(_dir, "implementation-readiness-report-2026-04-14.md"),
+            "mid"
+        );
+        File.WriteAllText(
+            Path.Combine(_dir, "implementation-readiness-report-2026-04-14-v2.md"),
+            "newest"
+        );
 
         var result = PlanningArtifacts.Discover(_dir);
 

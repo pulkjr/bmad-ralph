@@ -17,7 +17,8 @@ public class SprintPlanningPhase(
     AgentRunner runner,
     SprintRepository sprints,
     ConsoleUI ui,
-    RalphLoopConfig config)
+    RalphLoopConfig config
+)
 {
     public async Task<Sprint> RunAsync(CancellationToken ct = default)
     {
@@ -38,7 +39,12 @@ public class SprintPlanningPhase(
             var all = await sprints.GetAllAsync();
             var name = $"Sprint {all.Count + 1}";
             var id = await sprints.InsertAsync(name);
-            activeSprint = new Sprint { Id = id, Name = name, Status = SprintStatus.Active };
+            activeSprint = new Sprint
+            {
+                Id = id,
+                Name = name,
+                Status = SprintStatus.Active,
+            };
             ui.ShowSuccess($"Sprint '{name}' created.");
         }
 
@@ -57,7 +63,9 @@ public class SprintPlanningPhase(
 
         if (!artifacts.IsViable)
         {
-            ui.ShowError($"No usable planning artifacts found in '{config.PlanningArtifactsPath}'.");
+            ui.ShowError(
+                $"No usable planning artifacts found in '{config.PlanningArtifactsPath}'."
+            );
             ui.ShowInfo("Ralph Loop can work with any of the following (highest priority first):");
             ui.ShowInfo("  • epics.md                          ← BMAD epics breakdown (best)");
             ui.ShowInfo("  • prd.md                            ← Product Requirements Document");
@@ -65,7 +73,8 @@ public class SprintPlanningPhase(
             ui.ShowInfo("  • validation-report-prd-*.md        ← Validated PRD report");
             ui.ShowInfo("At least one of these must exist before sprint planning can run.");
             throw new InvalidOperationException(
-                $"Sprint planning cannot proceed: no viable planning artifacts found in '{config.PlanningArtifactsPath}'.");
+                $"Sprint planning cannot proceed: no viable planning artifacts found in '{config.PlanningArtifactsPath}'."
+            );
         }
 
         ui.ShowInfo($"Planning artifacts found in: {config.PlanningArtifactsPath}");
@@ -78,19 +87,27 @@ public class SprintPlanningPhase(
 
         var planningPrompt = BuildPlanningPrompt(activeSprint, artifacts);
 
-        await ui.WithSpinnerAsync("Running BMAD sprint backlog creation...", async () =>
-        {
-            await runner.RunAsync(
-                factory.ForScrumMaster(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-                planningPrompt, "Sprint Planner", ct);
-        });
+        await ui.WithSpinnerAsync(
+            "Running BMAD sprint backlog creation...",
+            async () =>
+            {
+                await runner.RunAsync(
+                    factory.ForScrumMaster(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+                    planningPrompt,
+                    "Sprint Planner",
+                    ct
+                );
+            }
+        );
 
         // Guard: verify the agent actually created epics
         var populated = await sprints.HasEpicsAsync(activeSprint.Id);
         if (!populated)
         {
             ui.ShowError("Sprint planning agent ran but created no epics in ledger.db.");
-            ui.ShowInfo("Ensure the planning artifact contains well-formed epic definitions and re-run ralph-loop.");
+            ui.ShowInfo(
+                "Ensure the planning artifact contains well-formed epic definitions and re-run ralph-loop."
+            );
             throw new InvalidOperationException("BMAD sprint backlog creation produced no epics.");
         }
 
@@ -103,15 +120,15 @@ public class SprintPlanningPhase(
         // Otherwise ask it to decompose the PRD source into epics.
         var step1 = artifacts.EpicsMd is not null
             ? $"""
-              Step 1 — Read the pre-defined epic breakdown:
-                - Epics: {artifacts.EpicsMd}
-              """
+                Step 1 — Read the pre-defined epic breakdown:
+                  - Epics: {artifacts.EpicsMd}
+                """
             : $"""
-              Step 1 — Read the planning artifacts and decompose into epics:
-                - PRD source: {artifacts.PrdSource}
-              Each epic should represent a coherent feature area. Each story must be independently
-              deliverable and testable with clear acceptance criteria.
-              """;
+                Step 1 — Read the planning artifacts and decompose into epics:
+                  - PRD source: {artifacts.PrdSource}
+                Each epic should represent a coherent feature area. Each story must be independently
+                deliverable and testable with clear acceptance criteria.
+                """;
 
         var archLine = artifacts.ArchSource is not null
             ? $"  - Architecture: {artifacts.ArchSource}"
@@ -156,6 +173,9 @@ public class SprintPlanningPhase(
 
         await runner.RunAsync(
             factory.ForDeveloper(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            prompt, "Scrum Master", ct);
+            prompt,
+            "Scrum Master",
+            ct
+        );
     }
 }

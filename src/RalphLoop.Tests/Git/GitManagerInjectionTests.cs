@@ -44,7 +44,8 @@ public sealed class GitManagerInjectionTests : IDisposable
     [InlineData("-b injected; touch INJECTED.txt")]
     [InlineData("''; touch INJECTED.txt; git checkout -b x '")]
     public async Task CreateEpicBranchAsync_WithInjectionPayload_DoesNotCreateSentinelFile(
-        string injectionPayload)
+        string injectionPayload
+    )
     {
         var sut = new GitManager(_repoPath);
 
@@ -61,7 +62,8 @@ public sealed class GitManagerInjectionTests : IDisposable
 
         Assert.False(
             File.Exists(_sentinelPath),
-            $"Injection succeeded: sentinel '{_sentinelPath}' was created by payload: {injectionPayload}");
+            $"Injection succeeded: sentinel '{_sentinelPath}' was created by payload: {injectionPayload}"
+        );
     }
 
     // ── MergeEpicToMainAsync injection payloads ───────────────────────────────
@@ -71,7 +73,8 @@ public sealed class GitManagerInjectionTests : IDisposable
     [InlineData("main --no-ff -m 'msg'; touch INJECTED.txt")]
     [InlineData("HEAD~1; touch INJECTED.txt")]
     public async Task MergeEpicToMainAsync_WithInjectionPayload_DoesNotCreateSentinelFile(
-        string injectionPayload)
+        string injectionPayload
+    )
     {
         var sut = new GitManager(_repoPath);
 
@@ -86,7 +89,8 @@ public sealed class GitManagerInjectionTests : IDisposable
 
         Assert.False(
             File.Exists(_sentinelPath),
-            $"Injection succeeded via MergeEpicToMainAsync payload: {injectionPayload}");
+            $"Injection succeeded via MergeEpicToMainAsync payload: {injectionPayload}"
+        );
     }
 
     // ── CommitStoryAsync — story/epic names go through stdin, not args ────────
@@ -107,7 +111,8 @@ public sealed class GitManagerInjectionTests : IDisposable
 
         Assert.False(
             File.Exists(_sentinelPath),
-            "Injection succeeded via CommitStoryAsync story/epic name");
+            "Injection succeeded via CommitStoryAsync story/epic name"
+        );
     }
 
     // ── FormatCommitMessage — pure static, produces safe output ──────────────
@@ -117,7 +122,9 @@ public sealed class GitManagerInjectionTests : IDisposable
     [InlineData("story", "epic && rm -rf /")]
     [InlineData("$(touch INJECTED.txt)", "epic")]
     public void FormatCommitMessage_WithInjectionInNames_DoesNotExecuteCode(
-        string storyName, string epicName)
+        string storyName,
+        string epicName
+    )
     {
         // FormatCommitMessage is pure — it never calls Process.Start.
         // This test verifies it stays that way and produces a message, not a shell command.
@@ -125,7 +132,8 @@ public sealed class GitManagerInjectionTests : IDisposable
 
         Assert.False(
             File.Exists(_sentinelPath),
-            "FormatCommitMessage must not execute any process");
+            "FormatCommitMessage must not execute any process"
+        );
 
         Assert.NotEmpty(msg);
         Assert.Contains("[Intent]:", msg);

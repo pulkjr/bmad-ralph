@@ -23,7 +23,8 @@ public class EpicCompletionPhase(
     EpicRepository epics,
     GitManager git,
     ConsoleUI ui,
-    RalphLoopConfig config)
+    RalphLoopConfig config
+)
 {
     private const int MaxSwarmAttempts = 2;
 
@@ -57,14 +58,22 @@ public class EpicCompletionPhase(
 
         do
         {
-            failures = await RunAllReviewsAsync(epic, artifacts, hasUxSpec,
-                changedFilesContext, verdictInstruction, ct);
+            failures = await RunAllReviewsAsync(
+                epic,
+                artifacts,
+                hasUxSpec,
+                changedFilesContext,
+                verdictInstruction,
+                ct
+            );
 
             if (failures.Count == 0)
                 break;
 
             swarmAttempt++;
-            ui.ShowWarning($"{failures.Count} review(s) failed (attempt {swarmAttempt}/{MaxSwarmAttempts}). Launching SWARM...");
+            ui.ShowWarning(
+                $"{failures.Count} review(s) failed (attempt {swarmAttempt}/{MaxSwarmAttempts}). Launching SWARM..."
+            );
             var personas = PartyModePersonas.Build(config, hasUxSpec);
 
             var swarmPrompt = $"""
@@ -93,12 +102,16 @@ public class EpicCompletionPhase(
                 """;
 
             await partyMode.RunAsync(personas, swarmPrompt, $"Epic Swarm — {epic.Name}", ct);
-
         } while (swarmAttempt < MaxSwarmAttempts);
 
         if (failures.Count > 0)
         {
-            if (!ui.Confirm($"Reviews still failing after {MaxSwarmAttempts} swarm attempt(s). Force-proceed to consensus?", defaultValue: false))
+            if (
+                !ui.Confirm(
+                    $"Reviews still failing after {MaxSwarmAttempts} swarm attempt(s). Force-proceed to consensus?",
+                    defaultValue: false
+                )
+            )
                 throw new OperationCanceledException("Epic completion reviews not resolved.");
         }
 
@@ -129,12 +142,21 @@ public class EpicCompletionPhase(
             """;
 
         var consensusResult = await partyMode.RunAsync(
-            finalPersonas, finalPrompt, $"Final Consensus — {epic.Name}", ct);
+            finalPersonas,
+            finalPrompt,
+            $"Final Consensus — {epic.Name}",
+            ct
+        );
 
         var allApproved = AllApproved(consensusResult.Response);
         if (!allApproved)
         {
-            if (!ui.Confirm("Consensus was not unanimous. Force-close epic anyway?", defaultValue: false))
+            if (
+                !ui.Confirm(
+                    "Consensus was not unanimous. Force-close epic anyway?",
+                    defaultValue: false
+                )
+            )
                 throw new OperationCanceledException("Epic consensus not reached.");
         }
 
@@ -148,7 +170,8 @@ public class EpicCompletionPhase(
         bool hasUxSpec,
         string changedFilesContext,
         string verdictInstruction,
-        CancellationToken ct)
+        CancellationToken ct
+    )
     {
         var failures = new List<string>();
 
@@ -163,7 +186,9 @@ public class EpicCompletionPhase(
             {changedFilesContext}
             List all findings with PASS or FAIL per finding.{verdictInstruction}
             """,
-            "Security Analyst", ct);
+            "Security Analyst",
+            ct
+        );
 
         if (!IsAllPassed(secResult.Response))
             failures.Add($"Security: {secResult.Response}");
@@ -178,7 +203,9 @@ public class EpicCompletionPhase(
             {changedFilesContext}
             List all findings with PASS or FAIL per finding.{verdictInstruction}
             """,
-            "Architect (Winston)", ct);
+            "Architect (Winston)",
+            ct
+        );
 
         if (!IsAllPassed(archResult.Response))
             failures.Add($"Architecture: {archResult.Response}");
@@ -193,7 +220,9 @@ public class EpicCompletionPhase(
             Flag any requirements that are missing, incomplete, or violated.
             {changedFilesContext}{verdictInstruction}
             """,
-            "Product Manager (John)", ct);
+            "Product Manager (John)",
+            ct
+        );
 
         if (!IsAllPassed(pmResult.Response))
             failures.Add($"PRD Compliance: {pmResult.Response}");
@@ -210,7 +239,9 @@ public class EpicCompletionPhase(
                 {changedFilesContext}
                 List all findings with PASS or FAIL per finding.{verdictInstruction}
                 """,
-                "UX Designer (Sally)", ct);
+                "UX Designer (Sally)",
+                ct
+            );
 
             if (!IsAllPassed(uxResult.Response))
                 failures.Add($"UX Compliance: {uxResult.Response}");
@@ -227,8 +258,11 @@ public class EpicCompletionPhase(
             return verdict.StartsWith("PASS", StringComparison.OrdinalIgnoreCase);
 
         // Fallback: whole-word FAIL match only (avoids matching "No VIOLATIONS found")
-        return !System.Text.RegularExpressions.Regex.IsMatch(response, @"\bFAIL\b",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return !System.Text.RegularExpressions.Regex.IsMatch(
+            response,
+            @"\bFAIL\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
     }
 
     private static bool AllApproved(string response)
@@ -242,7 +276,10 @@ public class EpicCompletionPhase(
         }
 
         // Fallback: look for unanimous / all approved signal
-        return System.Text.RegularExpressions.Regex.IsMatch(response, @"\bUNANIMOUS\b",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            response,
+            @"\bUNANIMOUS\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+        );
     }
 }

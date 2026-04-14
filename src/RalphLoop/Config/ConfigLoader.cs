@@ -24,13 +24,16 @@ public static class ConfigLoader
             var json = File.ReadAllText(configPath);
             try
             {
-                config = JsonSerializer.Deserialize<RalphLoopConfig>(json, JsonOptions)
-                         ?? new RalphLoopConfig();
+                config =
+                    JsonSerializer.Deserialize<RalphLoopConfig>(json, JsonOptions)
+                    ?? new RalphLoopConfig();
             }
             catch (JsonException ex)
             {
                 throw new InvalidOperationException(
-                    $"Failed to parse ralph-loop.json: {ex.Message}", ex);
+                    $"Failed to parse ralph-loop.json: {ex.Message}",
+                    ex
+                );
             }
         }
         else
@@ -43,7 +46,8 @@ public static class ConfigLoader
         // Resolve skill directories
         config.SkillDirectories.Shared = ResolvePath(config.SkillDirectories.Shared);
         config.SkillDirectories.Project = ResolvePath(
-            Path.Combine(config.ProjectPath, config.SkillDirectories.Project));
+            Path.Combine(config.ProjectPath, config.SkillDirectories.Project)
+        );
 
         // Set ledger.db path
         config.LedgerDbPath = Path.Combine(config.ProjectPath, "ledger.db");
@@ -83,7 +87,9 @@ public static class ConfigLoader
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
-                    $"Failed to parse BMAD config at '{bmadConfig}': {ex.Message}", ex);
+                    $"Failed to parse BMAD config at '{bmadConfig}': {ex.Message}",
+                    ex
+                );
             }
         }
 
@@ -93,8 +99,10 @@ public static class ConfigLoader
     private static string ResolvePath(string path)
     {
         if (path.StartsWith("~/"))
-            path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                path[2..]);
+            path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                path[2..]
+            );
         return Path.GetFullPath(path);
     }
 
@@ -102,11 +110,14 @@ public static class ConfigLoader
     {
         var config = new RalphLoopConfig { ProjectPath = projectPath };
         var configPath = Path.Combine(projectPath, "ralph-loop.json");
-        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        });
+        var json = JsonSerializer.Serialize(
+            config,
+            new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            }
+        );
         File.WriteAllText(configPath, json);
     }
 }

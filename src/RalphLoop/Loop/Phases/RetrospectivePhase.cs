@@ -19,7 +19,8 @@ public class RetrospectivePhase(
     StoryRepository storyRepo,
     GitManager git,
     ConsoleUI ui,
-    RalphLoopConfig config)
+    RalphLoopConfig config
+)
 {
     public async Task RunAsync(Epic epic, Data.Models.Sprint sprint, CancellationToken ct = default)
     {
@@ -27,19 +28,22 @@ public class RetrospectivePhase(
 
         var retroPrompt = $"""
             Run a sprint retrospective for epic '{epic.Name}' in sprint '{sprint.Name}'.
-            
+
             Cover:
             1. What went well?
             2. What could be improved?
             3. Any recurring issues (e.g. repeated QA failures)?
             4. Action items for the next sprint.
-            
+
             Provide a concise summary suitable for storing in the project ledger.
             """;
 
         var retroResult = await runner.RunAsync(
             factory.ForScrumMaster(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            retroPrompt, "Retrospective", ct);
+            retroPrompt,
+            "Retrospective",
+            ct
+        );
 
         // Save retrospective to DB
         await storyRepo.InsertRetrospectiveAsync(epic.Id, retroResult.Response);

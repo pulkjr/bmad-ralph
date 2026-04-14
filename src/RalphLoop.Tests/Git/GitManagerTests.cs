@@ -104,7 +104,10 @@ public class GitManagerTests
     {
         var msg = GitManager.FormatCommitMessage("S", "E", 1);
 
-        Assert.Contains("Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>", msg);
+        Assert.Contains(
+            "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>",
+            msg
+        );
     }
 
     // ── Edge cases ───────────────────────────────────────────────────────────

@@ -13,9 +13,17 @@ public static class CopilotLogLevel
     public const string All = "all";
     public const string Default = "warning";
 
-    public static readonly IReadOnlySet<string> ValidLevels = new HashSet<string>(StringComparer.Ordinal)
+    public static readonly IReadOnlySet<string> ValidLevels = new HashSet<string>(
+        StringComparer.Ordinal
+    )
     {
-        None, Error, Warning, Info, Debug, All, "default",
+        None,
+        Error,
+        Warning,
+        Info,
+        Debug,
+        All,
+        "default",
     };
 
     /// <summary>
@@ -26,8 +34,9 @@ public static class CopilotLogLevel
     {
         if (!ValidLevels.Contains(level))
             throw new ArgumentException(
-                $"'{level}' is not a valid Copilot log level. " +
-                $"Allowed values: {string.Join(", ", ValidLevels)}",
-                nameof(level));
+                $"'{level}' is not a valid Copilot log level. "
+                    + $"Allowed values: {string.Join(", ", ValidLevels)}",
+                nameof(level)
+            );
     }
 }

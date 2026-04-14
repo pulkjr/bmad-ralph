@@ -24,7 +24,8 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
         SessionConfig config,
         string prompt,
         string agentLabel,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         Exception? lastException = null;
 
@@ -35,7 +36,9 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
             if (attempt > 1)
             {
                 var delay = RetryBaseDelay * Math.Pow(2, attempt - 2); // 5s, 10s, 20s
-                ui.ShowWarning($"[{agentLabel}] Retrying (attempt {attempt}/{MaxRetries}) after {delay.TotalSeconds}s...");
+                ui.ShowWarning(
+                    $"[{agentLabel}] Retrying (attempt {attempt}/{MaxRetries}) after {delay.TotalSeconds}s..."
+                );
                 await Task.Delay(delay, ct);
             }
 
@@ -52,19 +55,24 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
             catch (Exception ex)
             {
                 lastException = ex;
-                ui.ShowWarning($"[{agentLabel}] Session error (attempt {attempt}/{MaxRetries}): {ex.Message}");
+                ui.ShowWarning(
+                    $"[{agentLabel}] Session error (attempt {attempt}/{MaxRetries}): {ex.Message}"
+                );
             }
         }
 
         throw new InvalidOperationException(
-            $"[{agentLabel}] Failed after {MaxRetries} attempts.", lastException);
+            $"[{agentLabel}] Failed after {MaxRetries} attempts.",
+            lastException
+        );
     }
 
     private async Task<AgentResult> RunOnceAsync(
         SessionConfig config,
         string prompt,
         string agentLabel,
-        CancellationToken ct)
+        CancellationToken ct
+    )
     {
         await using var session = await client.CreateSessionAsync(config);
 
@@ -92,8 +100,11 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
                     break;
 
                 case SessionErrorEvent err:
-                    done.TrySetException(new InvalidOperationException(
-                        $"[{agentLabel}] Session error: {err.Data.Message}"));
+                    done.TrySetException(
+                        new InvalidOperationException(
+                            $"[{agentLabel}] Session error: {err.Data.Message}"
+                        )
+                    );
                     break;
             }
         });

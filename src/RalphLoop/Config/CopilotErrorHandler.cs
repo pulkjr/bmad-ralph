@@ -42,29 +42,34 @@ public static class CopilotErrorHandler
     {
         var msg = ex.Message;
 
-        if (ContainsIgnoreCase(msg, "Not authenticated") ||
-            ContainsIgnoreCase(msg, "Please authenticate"))
+        if (
+            ContainsIgnoreCase(msg, "Not authenticated")
+            || ContainsIgnoreCase(msg, "Please authenticate")
+        )
         {
             throw new InvalidOperationException(
-                "Not authenticated with GitHub Copilot.\n" +
-                "Run 'gh auth login' to sign in, then try again.",
-                ex);
+                "Not authenticated with GitHub Copilot.\n"
+                    + "Run 'gh auth login' to sign in, then try again.",
+                ex
+            );
         }
 
         if (ContainsIgnoreCase(msg, "CLI process exited unexpectedly"))
         {
             // The SDK includes stderr output in the message when available.
             throw new InvalidOperationException(
-                "The GitHub Copilot CLI process exited unexpectedly.\n" +
-                "Check that 'gh' is installed and the Copilot extension is active.\n" +
-                $"Detail: {msg}",
-                ex);
+                "The GitHub Copilot CLI process exited unexpectedly.\n"
+                    + "Check that 'gh' is installed and the Copilot extension is active.\n"
+                    + $"Detail: {msg}",
+                ex
+            );
         }
 
         // Generic RPC / communication failure
         throw new InvalidOperationException(
             $"Failed to communicate with GitHub Copilot CLI.\n{msg}",
-            ex);
+            ex
+        );
     }
 
     // ── InvalidOperationException patterns ───────────────────────────────────
@@ -76,11 +81,12 @@ public static class CopilotErrorHandler
         if (ContainsIgnoreCase(msg, "Copilot CLI not found"))
         {
             throw new InvalidOperationException(
-                "GitHub Copilot CLI was not found.\n" +
-                "Ensure the 'GitHub.Copilot.SDK' NuGet package was fully restored, " +
-                "or install the GitHub CLI with the Copilot extension:\n" +
-                "  gh extension install github/gh-copilot",
-                ex);
+                "GitHub Copilot CLI was not found.\n"
+                    + "Ensure the 'GitHub.Copilot.SDK' NuGet package was fully restored, "
+                    + "or install the GitHub CLI with the Copilot extension:\n"
+                    + "  gh extension install github/gh-copilot",
+                ex
+            );
         }
 
         // Other InvalidOperationExceptions pass through unchanged.

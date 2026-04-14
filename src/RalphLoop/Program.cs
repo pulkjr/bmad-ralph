@@ -1,4 +1,5 @@
-﻿using GitHub.Copilot.SDK;
+﻿using System.Reflection;
+using GitHub.Copilot.SDK;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using RalphLoop.Agents;
@@ -11,16 +12,18 @@ using RalphLoop.Loop;
 using RalphLoop.Loop.Phases;
 using RalphLoop.UI;
 using Spectre.Console;
-using System.Reflection;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 // Handle flags that should not require a project path.
 if (args.Length == 1 && args[0] is "--version" or "-v")
 {
-    var infoVersion = System.Reflection.Assembly.GetExecutingAssembly()
-        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
-        ?.InformationalVersion ?? "unknown";
+    var infoVersion =
+        System
+            .Reflection.Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion
+        ?? "unknown";
     Console.WriteLine($"ralph-loop {infoVersion}");
     return 0;
 }
@@ -28,11 +31,15 @@ if (args.Length == 1 && args[0] is "--version" or "-v")
 if (args.Length == 1 && args[0] is "--help" or "-h")
 {
     AnsiConsole.Write(new FigletText("Ralph Loop").Color(Color.Blue));
-    AnsiConsole.MarkupLine("[grey]BMAD Agentic Development Loop — powered by GitHub Copilot SDK[/]");
+    AnsiConsole.MarkupLine(
+        "[grey]BMAD Agentic Development Loop — powered by GitHub Copilot SDK[/]"
+    );
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Usage:[/] ralph-loop [[[grey]project-path[/]]]");
     AnsiConsole.WriteLine();
-    AnsiConsole.MarkupLine("  [grey]project-path[/]   Path to the project root (default: current directory)");
+    AnsiConsole.MarkupLine(
+        "  [grey]project-path[/]   Path to the project root (default: current directory)"
+    );
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Options:[/]");
     AnsiConsole.MarkupLine("  [grey]--version, -v[/]  Print the version and exit");
@@ -73,8 +80,10 @@ foreach (var (cmd, arg) in new (string, string)[] { ("git", "--version"), ("bash
     {
         var psi = new System.Diagnostics.ProcessStartInfo(cmd, arg)
         {
-            RedirectStandardOutput = true, RedirectStandardError = true,
-            UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
         };
         using var proc = System.Diagnostics.Process.Start(psi);
         proc?.WaitForExit(3000);
@@ -113,11 +122,9 @@ services.AddSingleton(_ => new TestScriptRunner(config.ProjectPath));
 services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
 
 // Copilot SDK
-services.AddSingleton(_ => new CopilotClient(new CopilotClientOptions
-{
-    Cwd = config.ProjectPath,
-    LogLevel = CopilotLogLevel.Default,
-}));
+services.AddSingleton(_ => new CopilotClient(
+    new CopilotClientOptions { Cwd = config.ProjectPath, LogLevel = CopilotLogLevel.Default }
+));
 
 // Agents
 services.AddSingleton<SessionFactory>();
@@ -148,7 +155,10 @@ try
 }
 catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException)
 {
-    try { CopilotErrorHandler.Rethrow(ex); }
+    try
+    {
+        CopilotErrorHandler.Rethrow(ex);
+    }
     catch (InvalidOperationException friendlyEx)
     {
         ui.ShowError(friendlyEx.Message);

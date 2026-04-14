@@ -20,21 +20,21 @@ public class TestScriptRunner(string projectPath)
     public string GetMissingScriptPrompt(bool isUxProject) =>
         isUxProject
             ? """
-              test.sh does not exist. Please write it now. It must:
-              1. Build the application
-              2. Run unit/integration tests
-              3. Use agent-tui to validate all key screens from ux-design-specification.md
-              4. Exit 0 on full success
+                test.sh does not exist. Please write it now. It must:
+                1. Build the application
+                2. Run unit/integration tests
+                3. Use agent-tui to validate all key screens from ux-design-specification.md
+                4. Exit 0 on full success
 
-              You may NOT modify test.sh once written — only fix the application code.
-              """
+                You may NOT modify test.sh once written — only fix the application code.
+                """
             : """
-              test.sh does not exist. Please write it now for the language/framework of this project.
-              For .NET projects: run `dotnet build`, `dotnet test`, and any linters (e.g. roslynator analyze).
-              The script must exit 0 on success.
+                test.sh does not exist. Please write it now for the language/framework of this project.
+                For .NET projects: run `dotnet build`, `dotnet test`, and any linters (e.g. roslynator analyze).
+                The script must exit 0 on success.
 
-              You may NOT modify test.sh once written — only fix the application code.
-              """;
+                You may NOT modify test.sh once written — only fix the application code.
+                """;
 
     private const int DefaultTimeoutMinutes = 10;
 
@@ -54,11 +54,13 @@ public class TestScriptRunner(string projectPath)
             CreateNoWindow = true,
         };
 
-        using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start bash");
+        using var process =
+            Process.Start(psi) ?? throw new InvalidOperationException("Failed to start bash");
 
         // Hard-cap: cancel after DefaultTimeoutMinutes even if the caller never cancels.
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(DefaultTimeoutMinutes));
+        using var timeoutCts = new CancellationTokenSource(
+            TimeSpan.FromMinutes(DefaultTimeoutMinutes)
+        );
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
         var linked = linkedCts.Token;
 
@@ -68,8 +70,10 @@ public class TestScriptRunner(string projectPath)
             var stdErr = await process.StandardError.ReadToEndAsync(linked);
             await process.WaitForExitAsync(linked);
 
-            var output = string.Join("\n", new[] { stdOut, stdErr }
-                .Where(s => !string.IsNullOrWhiteSpace(s)));
+            var output = string.Join(
+                "\n",
+                new[] { stdOut, stdErr }.Where(s => !string.IsNullOrWhiteSpace(s))
+            );
 
             return new TestResult(process.ExitCode == 0, output, process.ExitCode);
         }
@@ -78,7 +82,9 @@ public class TestScriptRunner(string projectPath)
             // Timeout (not caller cancellation) — kill the process and surface as timeout
             process.Kill(entireProcessTree: true);
             throw new OperationCanceledException(
-                $"test.sh timed out after {DefaultTimeoutMinutes} minutes.", timeoutCts.Token);
+                $"test.sh timed out after {DefaultTimeoutMinutes} minutes.",
+                timeoutCts.Token
+            );
         }
     }
 }

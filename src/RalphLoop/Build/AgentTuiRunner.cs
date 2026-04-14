@@ -16,10 +16,12 @@ public class AgentTuiRunner(string projectPath)
 
     public async Task<AgentTuiResult> SmokeTestAsync(
         string appCommand,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         // Launch the app in a background shell and capture its PID
-        var script = $"{appCommand} & APP_PID=$!; sleep 3; agent-tui screenshot --json; kill $APP_PID 2>/dev/null";
+        var script =
+            $"{appCommand} & APP_PID=$!; sleep 3; agent-tui screenshot --json; kill $APP_PID 2>/dev/null";
         var result = await RunCommandAsync("bash", $"-c \"{script.Replace("\"", "\\\"")}\"", ct);
 
         if (result.ExitCode != 0 && string.IsNullOrWhiteSpace(result.StdOut))
@@ -32,7 +34,8 @@ public class AgentTuiRunner(string projectPath)
         try
         {
             var doc = JsonDocument.Parse(screenshotJson);
-            var hasContent = doc.RootElement.TryGetProperty("content", out var content)
+            var hasContent =
+                doc.RootElement.TryGetProperty("content", out var content)
                 && content.GetString()?.Length > 0;
             passed = hasContent;
             details = passed ? "Screenshot captured successfully" : "Screenshot content is empty";
@@ -56,7 +59,10 @@ public class AgentTuiRunner(string projectPath)
     }
 
     private async Task<(int ExitCode, string StdOut, string StdErr)> RunCommandAsync(
-        string executable, string args, CancellationToken ct)
+        string executable,
+        string args,
+        CancellationToken ct
+    )
     {
         var psi = new ProcessStartInfo
         {
@@ -69,7 +75,8 @@ public class AgentTuiRunner(string projectPath)
             CreateNoWindow = true,
         };
 
-        using var process = Process.Start(psi)
+        using var process =
+            Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start {executable}");
 
         var stdOut = await process.StandardOutput.ReadToEndAsync(ct);

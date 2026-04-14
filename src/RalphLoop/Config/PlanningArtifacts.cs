@@ -22,7 +22,8 @@ public record PlanningArtifacts(
     /// <summary>UX design specification file or directory if present.</summary>
     string? UxSource,
     /// <summary>All markdown files found directly in the artifacts directory.</summary>
-    IReadOnlyList<string> AllMarkdownFiles)
+    IReadOnlyList<string> AllMarkdownFiles
+)
 {
     /// <summary>True when the minimum required artifacts to create a sprint backlog were found.</summary>
     public bool IsViable => EpicsMd is not null || PrdSource is not null;
@@ -56,7 +57,8 @@ public record PlanningArtifacts(
         else
         {
             // Most-recent validation-report-prd-*.md
-            var validationReports = Directory.GetFiles(artifactsPath, "validation-report-prd-*.md")
+            var validationReports = Directory
+                .GetFiles(artifactsPath, "validation-report-prd-*.md")
                 .OrderByDescending(VersionSortKey)
                 .ToArray();
             if (validationReports.Length > 0)
@@ -83,7 +85,8 @@ public record PlanningArtifacts(
         else
         {
             // Most-recent implementation-readiness-report-*.md
-            var readinessReports = Directory.GetFiles(artifactsPath, "implementation-readiness-report-*.md")
+            var readinessReports = Directory
+                .GetFiles(artifactsPath, "implementation-readiness-report-*.md")
                 .OrderByDescending(VersionSortKey)
                 .ToArray();
             if (readinessReports.Length > 0)
@@ -94,16 +97,22 @@ public record PlanningArtifacts(
         }
 
         // ── UX spec ───────────────────────────────────────────────────────────
-        string? uxSource = Probe(artifactsPath, "ux-design-specification.md")
+        string? uxSource =
+            Probe(artifactsPath, "ux-design-specification.md")
             ?? ProbeDir(artifactsPath, "ux-design-specification-distillate");
 
         // ── All markdown files (for agent reference context) ──────────────────
-        var allMd = Directory.GetFiles(artifactsPath, "*.md")
-            .OrderBy(f => f)
-            .ToList()
-            .AsReadOnly();
+        var allMd = Directory.GetFiles(artifactsPath, "*.md").OrderBy(f => f).ToList().AsReadOnly();
 
-        return new PlanningArtifacts(epicsMd, prdSource, prdLabel, archSource, archLabel, uxSource, allMd);
+        return new PlanningArtifacts(
+            epicsMd,
+            prdSource,
+            prdLabel,
+            archSource,
+            archLabel,
+            uxSource,
+            allMd
+        );
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
@@ -130,12 +139,12 @@ public record PlanningArtifacts(
     private static string VersionSortKey(string filePath)
     {
         var name = Path.GetFileNameWithoutExtension(filePath);
-        var dir  = Path.GetDirectoryName(filePath) ?? "";
-        var ext  = Path.GetExtension(filePath);
+        var dir = Path.GetDirectoryName(filePath) ?? "";
+        var ext = Path.GetExtension(filePath);
 
         // Match optional -v<N> suffix at the end of the stem
         var match = Regex.Match(name, @"^(.*?)(?:-v(\d+))?$");
-        var stem    = match.Groups[1].Value;
+        var stem = match.Groups[1].Value;
         var version = match.Groups[2].Success ? int.Parse(match.Groups[2].Value) : 0;
 
         // Zero-pad version so lexicographic order == numeric order

@@ -26,9 +26,14 @@ public class StoryLoopPhase(
     TestScriptRunner testRunner,
     AgentTuiRunner agentTui,
     ConsoleUI ui,
-    RalphLoopConfig config)
+    RalphLoopConfig config
+)
 {
-    public async Task RunAsync(Epic epic, IReadOnlyList<Story> stories, CancellationToken ct = default)
+    public async Task RunAsync(
+        Epic epic,
+        IReadOnlyList<Story> stories,
+        CancellationToken ct = default
+    )
     {
         ui.ShowPhase("Phase 3", $"Story Loop — {stories.Count} stories");
 
@@ -43,7 +48,13 @@ public class StoryLoopPhase(
             // Insert or update story record
             if (story.Id == 0)
             {
-                story.Id = await storyRepo.InsertAsync(epic.Id, story.Name, story.Description, story.AcceptanceCriteria, story.OrderIndex);
+                story.Id = await storyRepo.InsertAsync(
+                    epic.Id,
+                    story.Name,
+                    story.Description,
+                    story.AcceptanceCriteria,
+                    story.OrderIndex
+                );
             }
             else
             {
@@ -57,7 +68,8 @@ public class StoryLoopPhase(
     private async Task ProcessStoryAsync(Epic epic, Story story, CancellationToken ct)
     {
         var hasUxSpec = File.Exists(
-            Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md"));
+            Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
+        );
         var isUxStory = hasUxSpec && IsUxStory(story);
 
         // Accumulate failure context across rounds so the developer can learn from history
@@ -70,23 +82,39 @@ public class StoryLoopPhase(
             round++;
             if (round > config.MaxStoryRounds)
             {
-                ui.ShowError($"Story '{story.Name}' exceeded max rounds ({config.MaxStoryRounds}). Marking as failed.");
+                ui.ShowError(
+                    $"Story '{story.Name}' exceeded max rounds ({config.MaxStoryRounds}). Marking as failed."
+                );
                 await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.Failed);
-                await storyRepo.AddEventAsync(story.Id, StoryEventType.QaFail,
-                    $"Exceeded MaxStoryRounds ({config.MaxStoryRounds}). Manual intervention required.");
+                await storyRepo.AddEventAsync(
+                    story.Id,
+                    StoryEventType.QaFail,
+                    $"Exceeded MaxStoryRounds ({config.MaxStoryRounds}). Manual intervention required."
+                );
                 throw new OperationCanceledException(
-                    $"Story '{story.Name}' exceeded {config.MaxStoryRounds} rounds.");
+                    $"Story '{story.Name}' exceeded {config.MaxStoryRounds} rounds."
+                );
             }
 
             await storyRepo.IncrementRoundAsync(story.Id, failed: false);
             await storyRepo.AddEventAsync(story.Id, StoryEventType.DevStart);
-            ui.ShowStoryStatus(story.Name, StoryStatus.InProgress, round, story.FailCount, story.TokensUsed);
+            ui.ShowStoryStatus(
+                story.Name,
+                StoryStatus.InProgress,
+                round,
+                story.FailCount,
+                story.TokensUsed
+            );
 
             // Step 1: Developer implements the story
             var devResult = await RunDeveloperAsync(epic, story, failureHistory, ct);
             await storyRepo.AddTokensAsync(story.Id, devResult.TokensUsed);
             await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.ReadyForReview);
-            await storyRepo.AddEventAsync(story.Id, StoryEventType.DevComplete, tokens: devResult.TokensUsed);
+            await storyRepo.AddEventAsync(
+                story.Id,
+                StoryEventType.DevComplete,
+                tokens: devResult.TokensUsed
+            );
 
             // Step 2: agent-tui smoke test (UX stories only)
             if (isUxStory && await agentTui.IsAvailableAsync())
@@ -96,9 +124,13 @@ public class StoryLoopPhase(
                 if (!smokeResult.Passed)
                 {
                     ui.ShowWarning($"agent-tui smoke test failed: {smokeResult.Details}");
-                    await storyRepo.AddEventAsync(story.Id, StoryEventType.UiSmokeFail,
-                        smokeResult.Details);
-                    var smokeFailure = $"UI Smoke Test Failed (round {round}):\n{smokeResult.Details}";
+                    await storyRepo.AddEventAsync(
+                        story.Id,
+                        StoryEventType.UiSmokeFail,
+                        smokeResult.Details
+                    );
+                    var smokeFailure =
+                        $"UI Smoke Test Failed (round {round}):\n{smokeResult.Details}";
                     failureHistory.Add(smokeFailure);
                     await HandleQaFailAsync(epic, story, smokeFailure, failureHistory, ct);
                     continue;
@@ -115,8 +147,12 @@ public class StoryLoopPhase(
             if (!qaPassed)
             {
                 await storyRepo.IncrementFailCountAsync(story.Id);
-                await storyRepo.AddEventAsync(story.Id, StoryEventType.QaFail,
-                    qaResult.Response, qaResult.TokensUsed);
+                await storyRepo.AddEventAsync(
+                    story.Id,
+                    StoryEventType.QaFail,
+                    qaResult.Response,
+                    qaResult.TokensUsed
+                );
 
                 var failCount = await storyRepo.GetFailCountAsync(story.Id);
                 ui.ShowWarning($"QA failed (fail #{failCount})");
@@ -139,13 +175,18 @@ public class StoryLoopPhase(
 
             // QA passed
             await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.QaPassed);
-            await storyRepo.AddEventAsync(story.Id, StoryEventType.QaPass,
-                qaResult.Response, qaResult.TokensUsed);
+            await storyRepo.AddEventAsync(
+                story.Id,
+                StoryEventType.QaPass,
+                qaResult.Response,
+                qaResult.TokensUsed
+            );
             ui.ShowSuccess("QA passed!");
 
             // Step 4: test.sh
             var testPassed = await RunTestScriptAsync(epic, story, isUxStory, failureHistory, ct);
-            if (!testPassed) continue;
+            if (!testPassed)
+                continue;
 
             // Step 5: Commit and mark complete — wrapped in a transaction to ensure atomicity (M12)
             await using (var tx = await db.BeginTransactionAsync())
@@ -168,55 +209,84 @@ public class StoryLoopPhase(
     }
 
     private async Task<AgentResult> RunDeveloperAsync(
-        Epic epic, Story story, IReadOnlyList<string> failureHistory, CancellationToken ct)
+        Epic epic,
+        Story story,
+        IReadOnlyList<string> failureHistory,
+        CancellationToken ct
+    )
     {
         var prompt = BuildDeveloperPrompt(epic, story, failureHistory);
         return await runner.RunAsync(
             factory.ForDeveloper(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            prompt, "Developer (Amelia)", ct);
+            prompt,
+            "Developer (Amelia)",
+            ct
+        );
     }
 
     private async Task<AgentResult> RunQaAsync(
-        Epic epic, Story story, bool isUxStory, int round, IReadOnlyList<string> failureHistory,
-        CancellationToken ct)
+        Epic epic,
+        Story story,
+        bool isUxStory,
+        int round,
+        IReadOnlyList<string> failureHistory,
+        CancellationToken ct
+    )
     {
         var prompt = BuildQaPrompt(epic, story, isUxStory, round, failureHistory);
         return await runner.RunAsync(
             factory.ForQa(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            prompt, "QA Engineer", ct);
+            prompt,
+            "QA Engineer",
+            ct
+        );
     }
 
     private async Task HandleQaFailAsync(
-        Epic epic, Story story, string failureReport, IReadOnlyList<string> failureHistory,
-        CancellationToken ct)
+        Epic epic,
+        Story story,
+        string failureReport,
+        IReadOnlyList<string> failureHistory,
+        CancellationToken ct
+    )
     {
         var prompt = BuildDeveloperFixPrompt(epic, story, failureReport, failureHistory);
         var result = await runner.RunAsync(
             factory.ForDeveloper(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            prompt, "Developer (Amelia) — Fix", ct);
+            prompt,
+            "Developer (Amelia) — Fix",
+            ct
+        );
         await storyRepo.AddTokensAsync(story.Id, result.TokensUsed);
     }
 
     private async Task RunSwarmAsync(
-        Epic epic, Story story, string failureReport, int failCount, CancellationToken ct)
+        Epic epic,
+        Story story,
+        string failureReport,
+        int failCount,
+        CancellationToken ct
+    )
     {
         await storyRepo.AddEventAsync(story.Id, StoryEventType.SwarmStart);
-        var hasUx = File.Exists(Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md"));
+        var hasUx = File.Exists(
+            Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
+        );
         var personas = PartyModePersonas.Build(config, hasUx);
 
         var prompt = $"""
             SWARM MODE — Story '{story.Name}' has failed QA {failCount} times.
-            
+
             QA Failure Report:
             <qa-failure-report>
             {failureReport}
             </qa-failure-report>
-            
+
             Story Description:
             <story>
             {story.Description}
             </story>
-            
+
             PROCEDURE:
             1. QA: Restate the exact failure conditions — what was expected vs. what happened.
             2. Architect: Identify whether this is a design flaw or an implementation bug.
@@ -224,18 +294,27 @@ public class StoryLoopPhase(
             4. Skeptic: Challenge whether the proposed fix fully resolves the issue.
             5. Developer: Apply the fix.
             6. QA: Confirm the fix addresses the original failure.
-            
+
             Output a final fix summary and whether QA is satisfied.
             """;
 
         var result = await partyMode.RunAsync(personas, prompt, $"Swarm — {story.Name}", ct);
         await storyRepo.AddTokensAsync(story.Id, result.TokensUsed);
-        await storyRepo.AddEventAsync(story.Id, StoryEventType.SwarmComplete, result.Response, result.TokensUsed);
+        await storyRepo.AddEventAsync(
+            story.Id,
+            StoryEventType.SwarmComplete,
+            result.Response,
+            result.TokensUsed
+        );
     }
 
     private async Task<bool> RunTestScriptAsync(
-        Epic epic, Story story, bool isUxStory, IReadOnlyList<string> failureHistory,
-        CancellationToken ct)
+        Epic epic,
+        Story story,
+        bool isUxStory,
+        IReadOnlyList<string> failureHistory,
+        CancellationToken ct
+    )
     {
         if (!testRunner.Exists)
         {
@@ -243,7 +322,10 @@ public class StoryLoopPhase(
             var writePrompt = testRunner.GetMissingScriptPrompt(isUxStory);
             var writeResult = await runner.RunAsync(
                 factory.ForDeveloper(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-                writePrompt, "Developer (Amelia) — Write test.sh", ct);
+                writePrompt,
+                "Developer (Amelia) — Write test.sh",
+                ct
+            );
             await storyRepo.AddTokensAsync(story.Id, writeResult.TokensUsed);
         }
 
@@ -280,7 +362,10 @@ public class StoryLoopPhase(
 
         var fixResult = await runner.RunAsync(
             factory.ForDeveloper(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            fixPrompt, "Developer (Amelia) — Fix Build", ct);
+            fixPrompt,
+            "Developer (Amelia) — Fix Build",
+            ct
+        );
 
         await storyRepo.AddTokensAsync(story.Id, fixResult.TokensUsed);
 
@@ -303,21 +388,30 @@ public class StoryLoopPhase(
 
     private async Task CommitStoryAsync(Epic epic, Story story, CancellationToken ct)
     {
-        if (!config.Git.AutoCommit) return;
+        if (!config.Git.AutoCommit)
+            return;
 
         var round = await storyRepo.GetRoundsAsync(story.Id);
         await git.CommitStoryAsync(story.Name, epic.Name, round);
-        await storyRepo.AddEventAsync(story.Id, StoryEventType.Committed,
-            $"Committed story '{story.Name}' on branch {epic.BranchName}");
+        await storyRepo.AddEventAsync(
+            story.Id,
+            StoryEventType.Committed,
+            $"Committed story '{story.Name}' on branch {epic.BranchName}"
+        );
         ui.ShowSuccess($"Committed: {story.Name}");
     }
 
-    private string BuildDeveloperPrompt(Epic epic, Story story, IReadOnlyList<string> failureHistory)
+    private string BuildDeveloperPrompt(
+        Epic epic,
+        Story story,
+        IReadOnlyList<string> failureHistory
+    )
     {
-        var historySection = failureHistory.Count > 0
-            ? $"\n\nPREVIOUS FAILURES (most recent last — do NOT repeat these mistakes):\n" +
-              string.Join("\n---\n", failureHistory)
-            : "";
+        var historySection =
+            failureHistory.Count > 0
+                ? $"\n\nPREVIOUS FAILURES (most recent last — do NOT repeat these mistakes):\n"
+                    + string.Join("\n---\n", failureHistory)
+                : "";
 
         var acSection = string.IsNullOrWhiteSpace(story.AcceptanceCriteria)
             ? ""
@@ -341,12 +435,17 @@ public class StoryLoopPhase(
     }
 
     private string BuildDeveloperFixPrompt(
-        Epic epic, Story story, string failureReport, IReadOnlyList<string> failureHistory)
+        Epic epic,
+        Story story,
+        string failureReport,
+        IReadOnlyList<string> failureHistory
+    )
     {
-        var historySection = failureHistory.Count > 1
-            ? $"\n\nFULL FAILURE HISTORY (most recent last):\n" +
-              string.Join("\n---\n", failureHistory)
-            : "";
+        var historySection =
+            failureHistory.Count > 1
+                ? $"\n\nFULL FAILURE HISTORY (most recent last):\n"
+                    + string.Join("\n---\n", failureHistory)
+                : "";
 
         var acSection = string.IsNullOrWhiteSpace(story.AcceptanceCriteria)
             ? ""
@@ -367,15 +466,21 @@ public class StoryLoopPhase(
     }
 
     private string BuildQaPrompt(
-        Epic epic, Story story, bool isUxStory, int round, IReadOnlyList<string> failureHistory)
+        Epic epic,
+        Story story,
+        bool isUxStory,
+        int round,
+        IReadOnlyList<string> failureHistory
+    )
     {
         var uxNote = isUxStory
             ? "\nThis is a UX story. Use agent-tui to test the TUI: launch the app, capture screenshots, and navigate user flows from ux-design-specification.md."
             : "";
 
-        var reReviewNote = round > 1 && failureHistory.Count > 0
-            ? $"\n\nThis is re-review round {round}. The previous failure was:\n<prior-failure>\n{failureHistory[^1]}\n</prior-failure>\nVerify the fix addresses the previous failure."
-            : "";
+        var reReviewNote =
+            round > 1 && failureHistory.Count > 0
+                ? $"\n\nThis is re-review round {round}. The previous failure was:\n<prior-failure>\n{failureHistory[^1]}\n</prior-failure>\nVerify the fix addresses the previous failure."
+                : "";
 
         var acSection = string.IsNullOrWhiteSpace(story.AcceptanceCriteria)
             ? ""
@@ -404,10 +509,12 @@ public class StoryLoopPhase(
     private string GetAppCommand() =>
         !string.IsNullOrWhiteSpace(config.AppCommand)
             ? config.AppCommand
-            : "./" + (
-                Directory.GetFiles(config.ProjectPath, "*.csproj").Any() ? "run" :
-                File.Exists(Path.Combine(config.ProjectPath, "package.json")) ? "start" :
-                "app");
+            : "./"
+                + (
+                    Directory.GetFiles(config.ProjectPath, "*.csproj").Any() ? "run"
+                    : File.Exists(Path.Combine(config.ProjectPath, "package.json")) ? "start"
+                    : "app"
+                );
 
     private static bool IsUxStory(Story story)
     {
@@ -424,15 +531,29 @@ public class StoryLoopPhase(
             return verdict.StartsWith("PASS", StringComparison.OrdinalIgnoreCase);
 
         // Fallback: whole-word keyword scan (avoids false matches in explanatory text)
-        if (System.Text.RegularExpressions.Regex.IsMatch(response, @"\bFAIL\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (
+            System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bFAIL\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+        )
             return false;
-        return System.Text.RegularExpressions.Regex.IsMatch(response, @"\bPASS\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-            || System.Text.RegularExpressions.Regex.IsMatch(response, @"\bAPPROVED\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-            || System.Text.RegularExpressions.Regex.IsMatch(response, @"\bLGTM\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bPASS\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+            || System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bAPPROVED\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+            || System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bLGTM\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
     }
 
     /// <summary>

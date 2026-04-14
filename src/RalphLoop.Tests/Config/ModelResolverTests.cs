@@ -19,14 +19,20 @@ public class ModelResolverTests
     private static CopilotClient ClientWith(params ModelInfo[] models)
     {
         var list = models.ToList();
-        return new CopilotClient(new CopilotClientOptions
-        {
-            AutoStart = false,
-            OnListModels = _ => Task.FromResult(list),
-        });
+        return new CopilotClient(
+            new CopilotClientOptions
+            {
+                AutoStart = false,
+                OnListModels = _ => Task.FromResult(list),
+            }
+        );
     }
 
-    private static ModelInfo Model(string id, string? policyState = null, double? multiplier = null) =>
+    private static ModelInfo Model(
+        string id,
+        string? policyState = null,
+        double? multiplier = null
+    ) =>
         new()
         {
             Id = id,
@@ -35,18 +41,19 @@ public class ModelResolverTests
             Billing = multiplier is null ? null : new() { Multiplier = multiplier.Value },
         };
 
-    private static ModelsConfig AllSetTo(string modelId) => new()
-    {
-        Default = modelId,
-        Developer = modelId,
-        Architect = modelId,
-        ProductManager = modelId,
-        Qa = modelId,
-        Security = modelId,
-        TechWriter = modelId,
-        UxDesigner = modelId,
-        PartyMode = modelId,
-    };
+    private static ModelsConfig AllSetTo(string modelId) =>
+        new()
+        {
+            Default = modelId,
+            Developer = modelId,
+            Architect = modelId,
+            ProductManager = modelId,
+            Qa = modelId,
+            Security = modelId,
+            TechWriter = modelId,
+            UxDesigner = modelId,
+            PartyMode = modelId,
+        };
 
     private static ConsoleUI SilentUi() => new();
 
@@ -82,7 +89,8 @@ public class ModelResolverTests
         // "disabled" must be treated as unavailable.
         var client = ClientWith(
             Model("gpt-5", policyState: "disabled"),
-            Model("gpt-5.1", policyState: "enabled"));
+            Model("gpt-5.1", policyState: "enabled")
+        );
         var models = AllSetTo("gpt-5");
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -97,7 +105,8 @@ public class ModelResolverTests
         // This was the root cause of the original crash: our old denylist did not block "".
         var client = ClientWith(
             Model("gpt-5", policyState: ""),
-            Model("gpt-5.1", policyState: null));
+            Model("gpt-5.1", policyState: null)
+        );
         var models = AllSetTo("gpt-5");
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -112,7 +121,8 @@ public class ModelResolverTests
         // must NOT slip through. Safe-by-default: only "enabled" or null is allowed.
         var client = ClientWith(
             Model("gpt-5", policyState: "pending-approval"),
-            Model("gpt-5.1", policyState: "enabled"));
+            Model("gpt-5.1", policyState: "enabled")
+        );
         var models = AllSetTo("gpt-5");
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -141,7 +151,8 @@ public class ModelResolverTests
         var client = ClientWith(
             Model("configured-model", policyState: "disabled"),
             Model("opus-model", policyState: "enabled", multiplier: 3.0),
-            Model("standard-model", policyState: "enabled", multiplier: 1.0));
+            Model("standard-model", policyState: "enabled", multiplier: 1.0)
+        );
         var models = AllSetTo("configured-model");
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -156,7 +167,8 @@ public class ModelResolverTests
         var client = ClientWith(
             Model("gpt-5", policyState: "disabled"),
             Model("claude-sonnet-4.6", policyState: "enabled", multiplier: 1.0),
-            Model("gpt-5.1", policyState: "enabled", multiplier: 1.0));
+            Model("gpt-5.1", policyState: "enabled", multiplier: 1.0)
+        );
         var models = new ModelsConfig { Developer = "gpt-5" };
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -171,7 +183,8 @@ public class ModelResolverTests
         var client = ClientWith(
             Model("claude-sonnet-4.6", policyState: "disabled"),
             Model("gpt-5.1", policyState: "enabled", multiplier: 1.0),
-            Model("claude-sonnet-4.5", policyState: "enabled", multiplier: 1.0));
+            Model("claude-sonnet-4.5", policyState: "enabled", multiplier: 1.0)
+        );
         var models = new ModelsConfig { Qa = "claude-sonnet-4.6" };
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -185,7 +198,8 @@ public class ModelResolverTests
         // When no same-provider fallback is available, any 1x model is acceptable.
         var client = ClientWith(
             Model("gpt-5", policyState: "disabled"),
-            Model("claude-sonnet-4.6", policyState: "enabled", multiplier: 1.0));
+            Model("claude-sonnet-4.6", policyState: "enabled", multiplier: 1.0)
+        );
         var models = new ModelsConfig { Security = "gpt-5" };
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -199,7 +213,8 @@ public class ModelResolverTests
         // Last resort: if only opus (3x) models are available, use them rather than failing.
         var client = ClientWith(
             Model("unavailable-model", policyState: "disabled"),
-            Model("claude-opus", policyState: "enabled", multiplier: 3.0));
+            Model("claude-opus", policyState: "enabled", multiplier: 3.0)
+        );
         var models = new ModelsConfig { Architect = "unavailable-model" };
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -214,12 +229,9 @@ public class ModelResolverTests
     {
         var client = ClientWith(
             Model("gpt-5.3-codex", policyState: "enabled"),
-            Model("claude-sonnet-4.6", policyState: "enabled"));
-        var models = new ModelsConfig
-        {
-            Developer = "gpt-5.3-codex",
-            Qa = "claude-sonnet-4.6",
-        };
+            Model("claude-sonnet-4.6", policyState: "enabled")
+        );
+        var models = new ModelsConfig { Developer = "gpt-5.3-codex", Qa = "claude-sonnet-4.6" };
 
         await ModelResolver.ResolveAsync(client, models, SilentUi());
 
@@ -234,7 +246,8 @@ public class ModelResolverTests
         // We provide two models; one is available for QA diversification.
         var client = ClientWith(
             Model("model-a", policyState: "enabled"),
-            Model("model-b", policyState: "enabled"));
+            Model("model-b", policyState: "enabled")
+        );
         var models = new ModelsConfig
         {
             Developer = "model-a",
@@ -253,11 +266,7 @@ public class ModelResolverTests
         // If only one model is available at all, we keep it for both rather than failing.
         // The warning is emitted but the run must not be blocked.
         var client = ClientWith(Model("only-model", policyState: "enabled"));
-        var models = new ModelsConfig
-        {
-            Developer = "only-model",
-            Qa = "only-model",
-        };
+        var models = new ModelsConfig { Developer = "only-model", Qa = "only-model" };
 
         // Should not throw — best-effort diversification
         await ModelResolver.ResolveAsync(client, models, SilentUi());
@@ -274,11 +283,13 @@ public class ModelResolverTests
         // All models denied → clear error, not a cryptic session.create failure.
         var client = ClientWith(
             Model("model-a", policyState: "disabled"),
-            Model("model-b", policyState: "denied"));
+            Model("model-b", policyState: "denied")
+        );
         var models = AllSetTo("model-a");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ModelResolver.ResolveAsync(client, models, SilentUi()));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ModelResolver.ResolveAsync(client, models, SilentUi())
+        );
 
         Assert.Contains("No models are available", ex.Message);
     }
@@ -292,17 +303,22 @@ public class ModelResolverTests
         // contains "Not authenticated. Please authenticate first."
         // ModelResolver must convert this into a user-friendly InvalidOperationException
         // that tells the user to run 'gh auth login'.
-        var client = new CopilotClient(new CopilotClientOptions
-        {
-            AutoStart = false,
-            OnListModels = _ => throw new System.IO.IOException(
-                "Communication error with Copilot CLI: Request models.list failed " +
-                "with message: Not authenticated. Please authenticate first."),
-        });
+        var client = new CopilotClient(
+            new CopilotClientOptions
+            {
+                AutoStart = false,
+                OnListModels = _ =>
+                    throw new System.IO.IOException(
+                        "Communication error with Copilot CLI: Request models.list failed "
+                            + "with message: Not authenticated. Please authenticate first."
+                    ),
+            }
+        );
         var models = AllSetTo("gpt-5");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ModelResolver.ResolveAsync(client, models, SilentUi()));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ModelResolver.ResolveAsync(client, models, SilentUi())
+        );
 
         Assert.Contains("gh auth login", ex.Message);
     }
@@ -312,16 +328,21 @@ public class ModelResolverTests
     {
         // When the CLI process exits unexpectedly, the SDK wraps the failure in an
         // IOException. ModelResolver must surface this as an actionable message.
-        var client = new CopilotClient(new CopilotClientOptions
-        {
-            AutoStart = false,
-            OnListModels = _ => throw new System.IO.IOException(
-                "CLI process exited unexpectedly.\nstderr: something went wrong"),
-        });
+        var client = new CopilotClient(
+            new CopilotClientOptions
+            {
+                AutoStart = false,
+                OnListModels = _ =>
+                    throw new System.IO.IOException(
+                        "CLI process exited unexpectedly.\nstderr: something went wrong"
+                    ),
+            }
+        );
         var models = AllSetTo("gpt-5");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ModelResolver.ResolveAsync(client, models, SilentUi()));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ModelResolver.ResolveAsync(client, models, SilentUi())
+        );
 
         Assert.Contains("exited unexpectedly", ex.Message);
     }
@@ -333,11 +354,11 @@ public class ModelResolverTests
         // InvalidOperationException with "Copilot CLI not found".
         // CopilotErrorHandler must convert this to an actionable message.
         var inner = new InvalidOperationException(
-            "Copilot CLI not found at '/home/dev/.nuget/...'. " +
-            "Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath.");
+            "Copilot CLI not found at '/home/dev/.nuget/...'. "
+                + "Ensure the SDK NuGet package was restored correctly or provide an explicit CliPath."
+        );
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => CopilotErrorHandler.Rethrow(inner));
+        var ex = Assert.Throws<InvalidOperationException>(() => CopilotErrorHandler.Rethrow(inner));
 
         Assert.Contains("gh extension install", ex.Message);
     }
@@ -349,8 +370,7 @@ public class ModelResolverTests
         // (not a raw IOException) so Program.cs's existing catch block handles them.
         var inner = new System.IO.IOException("some unknown transport error");
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => CopilotErrorHandler.Rethrow(inner));
+        var ex = Assert.Throws<InvalidOperationException>(() => CopilotErrorHandler.Rethrow(inner));
 
         Assert.Contains("some unknown transport error", ex.Message);
     }
@@ -366,7 +386,8 @@ public class ModelResolverTests
             Model("claude-sonnet-4.6", policyState: "enabled"),
             Model("claude-sonnet-4.5", policyState: "enabled"),
             Model("gpt-5", policyState: "enabled"),
-            Model("gpt-5.1", policyState: "enabled"));
+            Model("gpt-5.1", policyState: "enabled")
+        );
 
         var models = new ModelsConfig
         {

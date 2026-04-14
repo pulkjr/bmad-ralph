@@ -66,7 +66,8 @@ public class TestScriptRunnerTests : IDisposable
     [Fact]
     public async Task RunAsync_ReturnsFailed_WhenScriptMissing()
     {
-        if (OperatingSystem.IsWindows()) return; // bash unavailable
+        if (OperatingSystem.IsWindows())
+            return; // bash unavailable
 
         var runner = new TestScriptRunner(_tempDir);
         var result = await runner.RunAsync();
@@ -79,7 +80,8 @@ public class TestScriptRunnerTests : IDisposable
     [Fact]
     public async Task RunAsync_ReturnsPassed_WhenScriptExitsZero()
     {
-        if (OperatingSystem.IsWindows()) return;
+        if (OperatingSystem.IsWindows())
+            return;
 
         WriteScript("echo 'all good'\nexit 0");
         var runner = new TestScriptRunner(_tempDir);
@@ -92,7 +94,8 @@ public class TestScriptRunnerTests : IDisposable
     [Fact]
     public async Task RunAsync_ReturnsFailed_WhenScriptExitsNonZero()
     {
-        if (OperatingSystem.IsWindows()) return;
+        if (OperatingSystem.IsWindows())
+            return;
 
         WriteScript("echo 'build failed' >&2\nexit 1");
         var runner = new TestScriptRunner(_tempDir);
@@ -106,7 +109,8 @@ public class TestScriptRunnerTests : IDisposable
     [Fact]
     public async Task RunAsync_CapturesStdout_InOutput()
     {
-        if (OperatingSystem.IsWindows()) return;
+        if (OperatingSystem.IsWindows())
+            return;
 
         WriteScript("echo 'hello stdout'");
         var runner = new TestScriptRunner(_tempDir);
@@ -118,7 +122,8 @@ public class TestScriptRunnerTests : IDisposable
     [Fact]
     public async Task RunAsync_ThrowsOperationCanceled_WhenTokenAlreadyCancelled()
     {
-        if (OperatingSystem.IsWindows()) return;
+        if (OperatingSystem.IsWindows())
+            return;
 
         // A script that would run indefinitely — cancellation must stop it.
         WriteScript("sleep 60");
@@ -127,8 +132,7 @@ public class TestScriptRunnerTests : IDisposable
         using var cts = new CancellationTokenSource();
         cts.Cancel(); // pre-cancel
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => runner.RunAsync(cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunAsync(cts.Token));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -139,9 +143,15 @@ public class TestScriptRunnerTests : IDisposable
         File.WriteAllText(path, $"#!/usr/bin/env bash\n{content}\n");
         // Set executable bit using the .NET 7+ API — no external subprocess needed.
         if (!OperatingSystem.IsWindows())
-            File.SetUnixFileMode(path,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
-                UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
-                UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            File.SetUnixFileMode(
+                path,
+                UnixFileMode.UserRead
+                    | UnixFileMode.UserWrite
+                    | UnixFileMode.UserExecute
+                    | UnixFileMode.GroupRead
+                    | UnixFileMode.GroupExecute
+                    | UnixFileMode.OtherRead
+                    | UnixFileMode.OtherExecute
+            );
     }
 }

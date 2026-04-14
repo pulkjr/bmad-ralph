@@ -11,6 +11,7 @@ public class RalphLoopConfig
     public int MaxQaFailsBeforeSwarm { get; set; } = 3;
     public int MaxStoryRounds { get; set; } = 10;
     public bool EnableAgentTui { get; set; } = true;
+
     /// <summary>
     /// Overrides the default app run command heuristic.
     /// If empty, the command is auto-detected from project type.
@@ -20,6 +21,7 @@ public class RalphLoopConfig
     // Resolved at load time — not serialized to JSON
     [JsonIgnore]
     public string LedgerDbPath { get; set; } = "";
+
     [JsonIgnore]
     public string PlanningArtifactsPath { get; set; } = "";
 }

@@ -26,7 +26,7 @@ if command -v csharpier &>/dev/null; then
   if csharpier check . 2>&1; then
     pass "csharpier: all files formatted"
   else
-    fail "csharpier: formatting issues found. Run 'csharpier .' to fix, then re-stage."
+    fail "csharpier: formatting issues found. Run 'csharpier format .' to fix, then re-stage."
   fi
 else
   warn "csharpier not found — skipping formatter check. Install with: dotnet tool restore"

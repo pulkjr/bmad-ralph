@@ -21,7 +21,8 @@ public class SkillDirectoryResolverTests : IDisposable
     {
         var config = BuildConfig(
             sharedDir: Path.Combine(_tempDir, "nonexistent-shared"),
-            projectDir: Path.Combine(_tempDir, "nonexistent-project"));
+            projectDir: Path.Combine(_tempDir, "nonexistent-project")
+        );
 
         var dirs = SkillDirectoryResolver.Resolve(config);
 
@@ -48,7 +49,8 @@ public class SkillDirectoryResolverTests : IDisposable
         var sharedDir = MakeDir("shared");
         var config = BuildConfig(
             sharedDir: sharedDir,
-            projectDir: Path.Combine(_tempDir, "no-project"));
+            projectDir: Path.Combine(_tempDir, "no-project")
+        );
 
         var dirs = SkillDirectoryResolver.Resolve(config);
 
@@ -62,7 +64,8 @@ public class SkillDirectoryResolverTests : IDisposable
         var projectDir = MakeDir("project");
         var config = BuildConfig(
             sharedDir: Path.Combine(_tempDir, "no-shared"),
-            projectDir: projectDir);
+            projectDir: projectDir
+        );
 
         var dirs = SkillDirectoryResolver.Resolve(config);
 

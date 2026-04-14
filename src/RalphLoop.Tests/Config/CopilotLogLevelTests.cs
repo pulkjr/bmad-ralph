@@ -43,7 +43,7 @@ public class CopilotLogLevelTests
 
     [Theory]
     [InlineData("")]
-    [InlineData("Warning")]   // case-sensitive
+    [InlineData("Warning")] // case-sensitive
     [InlineData("WARN")]
     [InlineData("verbose")]
     [InlineData("trace")]

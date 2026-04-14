@@ -23,9 +23,8 @@ public class ConsoleUI
     public string AskChoice(string question, IEnumerable<string> choices)
     {
         return AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title(question)
-                .AddChoices(choices));
+            new SelectionPrompt<string>().Title(question).AddChoices(choices)
+        );
     }
 
     public void ShowInfo(string message) =>
@@ -42,7 +41,9 @@ public class ConsoleUI
 
     public void ShowAgentOutput(string agentName, string message)
     {
-        AnsiConsole.MarkupLine($"[bold blue][[{Markup.Escape(agentName)}]][/] {Markup.Escape(message)}");
+        AnsiConsole.MarkupLine(
+            $"[bold blue][[{Markup.Escape(agentName)}]][/] {Markup.Escape(message)}"
+        );
     }
 
     public void ShowSection(string title)
@@ -53,18 +54,25 @@ public class ConsoleUI
     public void ShowPhase(string phase, string description)
     {
         AnsiConsole.WriteLine();
-        AnsiConsole.Write(new Panel(
-            new Markup($"[bold]{Markup.Escape(description)}[/]"))
-        {
-            Header = new PanelHeader($" {Markup.Escape(phase)} ", Justify.Center),
-            Border = BoxBorder.Rounded,
-            BorderStyle = new Style(Color.Blue),
-            Padding = new Padding(1, 0),
-        });
+        AnsiConsole.Write(
+            new Panel(new Markup($"[bold]{Markup.Escape(description)}[/]"))
+            {
+                Header = new PanelHeader($" {Markup.Escape(phase)} ", Justify.Center),
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(Color.Blue),
+                Padding = new Padding(1, 0),
+            }
+        );
         AnsiConsole.WriteLine();
     }
 
-    public void ShowStoryStatus(string storyName, string status, int round, int failCount, long tokens)
+    public void ShowStoryStatus(
+        string storyName,
+        string status,
+        int round,
+        int failCount,
+        long tokens
+    )
     {
         var statusColor = status switch
         {
@@ -72,7 +80,7 @@ public class ConsoleUI
             "qa_passed" or "build_passed" => "cyan",
             "failed" => "red",
             "ready_for_review" => "yellow",
-            _ => "white"
+            _ => "white",
         };
 
         var table = new Table()
@@ -88,7 +96,8 @@ public class ConsoleUI
             $"[{statusColor}]{Markup.Escape(status)}[/]",
             round.ToString(),
             failCount.ToString(),
-            tokens.ToString("N0"));
+            tokens.ToString("N0")
+        );
 
         AnsiConsole.Write(table);
     }
@@ -107,17 +116,20 @@ public class ConsoleUI
     {
         var color = passed ? "green" : "red";
         var header = passed ? "✓ Build/Test Passed" : "✗ Build/Test Failed";
-        AnsiConsole.Write(new Panel(new Text(output))
-        {
-            Header = new PanelHeader($" {header} ", Justify.Center),
-            Border = BoxBorder.Rounded,
-            BorderStyle = new Style(passed ? Color.Green : Color.Red),
-        });
+        AnsiConsole.Write(
+            new Panel(new Text(output))
+            {
+                Header = new PanelHeader($" {header} ", Justify.Center),
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(passed ? Color.Green : Color.Red),
+            }
+        );
     }
 
     public async Task WithSpinnerAsync(string message, Func<Task> action)
     {
-        await AnsiConsole.Status()
+        await AnsiConsole
+            .Status()
             .Spinner(Spinner.Known.Dots)
             .SpinnerStyle(Style.Parse("blue"))
             .StartAsync(message, async _ => await action());
@@ -126,26 +138,32 @@ public class ConsoleUI
     public void ShowAgentIntro(string agentName, string? model)
     {
         AnsiConsole.WriteLine();
-        var modelLine = string.IsNullOrWhiteSpace(model) ? "" : $"\n[grey]Model: {Markup.Escape(model)}[/]";
-        AnsiConsole.Write(new Panel(
-            new Markup($"[bold white]{Markup.Escape(agentName)}[/]{modelLine}"))
-        {
-            Border = BoxBorder.Rounded,
-            BorderStyle = new Style(Color.Blue),
-            Padding = new Padding(1, 0),
-        });
+        var modelLine = string.IsNullOrWhiteSpace(model)
+            ? ""
+            : $"\n[grey]Model: {Markup.Escape(model)}[/]";
+        AnsiConsole.Write(
+            new Panel(new Markup($"[bold white]{Markup.Escape(agentName)}[/]{modelLine}"))
+            {
+                Border = BoxBorder.Rounded,
+                BorderStyle = new Style(Color.Blue),
+                Padding = new Padding(1, 0),
+            }
+        );
     }
 
     public void ShowAgentTokenSummary(string agentLabel, long tokens)
     {
         AnsiConsole.MarkupLine(
-            $"[grey][[{Markup.Escape(agentLabel)}]][/] [dim]✦ {tokens:N0} tokens used[/]");
+            $"[grey][[{Markup.Escape(agentLabel)}]][/] [dim]✦ {tokens:N0} tokens used[/]"
+        );
     }
 
     public void ShowPartyRoster(IReadOnlyList<CustomAgentConfig> personas, string? model)
     {
         AnsiConsole.WriteLine();
-        var modelLabel = string.IsNullOrWhiteSpace(model) ? "" : $"  [grey]Model: {Markup.Escape(model)}[/]";
+        var modelLabel = string.IsNullOrWhiteSpace(model)
+            ? ""
+            : $"  [grey]Model: {Markup.Escape(model)}[/]";
         var table = new Table()
             .Border(TableBorder.Rounded)
             .BorderStyle(new Style(Color.Yellow))
@@ -159,7 +177,8 @@ public class ConsoleUI
             table.AddRow(
                 $"[bold cyan]{Markup.Escape(p.DisplayName ?? p.Name)}[/]",
                 Markup.Escape(p.Name),
-                Markup.Escape(p.Description ?? string.Empty));
+                Markup.Escape(p.Description ?? string.Empty)
+            );
         }
 
         AnsiConsole.Write(table);

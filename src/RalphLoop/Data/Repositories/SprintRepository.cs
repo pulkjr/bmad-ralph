@@ -8,9 +8,11 @@ public class SprintRepository(LedgerDb db)
     public async Task<Sprint?> GetActiveSprintAsync()
     {
         await using var cmd = db.Connection.CreateCommand();
-        cmd.CommandText = "SELECT id, name, status, created_at FROM sprints WHERE status = 'active' ORDER BY id DESC LIMIT 1";
+        cmd.CommandText =
+            "SELECT id, name, status, created_at FROM sprints WHERE status = 'active' ORDER BY id DESC LIMIT 1";
         await using var reader = await cmd.ExecuteReaderAsync();
-        if (!await reader.ReadAsync()) return null;
+        if (!await reader.ReadAsync())
+            return null;
         return MapSprint(reader);
     }
 
@@ -28,7 +30,8 @@ public class SprintRepository(LedgerDb db)
     public async Task<long> InsertAsync(string name)
     {
         await using var cmd = db.Connection.CreateCommand();
-        cmd.CommandText = "INSERT INTO sprints (name, status) VALUES (@n, 'active'); SELECT last_insert_rowid();";
+        cmd.CommandText =
+            "INSERT INTO sprints (name, status) VALUES (@n, 'active'); SELECT last_insert_rowid();";
         cmd.Parameters.AddWithValue("@n", name);
         return (long)(await cmd.ExecuteScalarAsync())!;
     }
@@ -53,12 +56,15 @@ public class SprintRepository(LedgerDb db)
         return Convert.ToInt64(await cmd.ExecuteScalarAsync()) > 0;
     }
 
-    private static Sprint MapSprint(SqliteDataReader r) => new()
-    {
-        Id = r.GetInt64(r.GetOrdinal("id")),
-        Name = r.GetString(r.GetOrdinal("name")),
-        Status = r.GetString(r.GetOrdinal("status")),
-        CreatedAt = DateTime.Parse(r.GetString(r.GetOrdinal("created_at")),
-            System.Globalization.CultureInfo.InvariantCulture),
-    };
+    private static Sprint MapSprint(SqliteDataReader r) =>
+        new()
+        {
+            Id = r.GetInt64(r.GetOrdinal("id")),
+            Name = r.GetString(r.GetOrdinal("name")),
+            Status = r.GetString(r.GetOrdinal("status")),
+            CreatedAt = DateTime.Parse(
+                r.GetString(r.GetOrdinal("created_at")),
+                System.Globalization.CultureInfo.InvariantCulture
+            ),
+        };
 }

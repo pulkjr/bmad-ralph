@@ -20,17 +20,20 @@ public class SprintReviewPhase(
     SessionFactory factory,
     EpicRepository epics,
     ConsoleUI ui,
-    RalphLoopConfig config)
+    RalphLoopConfig config
+)
 {
     public async Task<Epic> RunAsync(
         Data.Models.Sprint sprint,
         Epic epic,
-        CancellationToken ct = default)
+        CancellationToken ct = default
+    )
     {
         ui.ShowPhase("Phase 2", $"Sprint Review — Epic: {epic.Name}");
 
         var hasUxSpec = File.Exists(
-            Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md"));
+            Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
+        );
 
         var personas = PartyModePersonas.Build(config, hasUxSpec);
 
@@ -43,12 +46,14 @@ public class SprintReviewPhase(
 
         // Ask for consensus
         var consensusReached = ui.Confirm(
-            "\n✅ Has the team reached consensus and are all members committed to proceeding?");
+            "\n✅ Has the team reached consensus and are all members committed to proceeding?"
+        );
 
         if (!consensusReached)
         {
             throw new OperationCanceledException(
-                "Sprint review did not reach consensus. Please resolve issues and restart.");
+                "Sprint review did not reach consensus. Please resolve issues and restart."
+            );
         }
 
         // Phase 2.5: Implementation readiness gate
@@ -67,7 +72,10 @@ public class SprintReviewPhase(
 
         var readinessResult = await runner.RunAsync(
             factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            readinessPrompt, "Implementation Readiness", ct);
+            readinessPrompt,
+            "Implementation Readiness",
+            ct
+        );
 
         var decision = ParseReadinessDecision(readinessResult.Response);
 
@@ -78,24 +86,33 @@ public class SprintReviewPhase(
                 break;
 
             case ReadinessDecision.Concerns:
-                ui.ShowWarning("Implementation readiness: CONCERNS. Launching resolution party-mode...");
-                await partyMode.RunAsync(personas,
+                ui.ShowWarning(
+                    "Implementation readiness: CONCERNS. Launching resolution party-mode..."
+                );
+                await partyMode.RunAsync(
+                    personas,
                     $"""
                     Resolve the following implementation concerns before proceeding:
                     <readiness-report>
                     {readinessResult.Response}
                     </readiness-report>
                     """,
-                    "Readiness Concerns Resolution", ct);
+                    "Readiness Concerns Resolution",
+                    ct
+                );
 
                 if (!ui.Confirm("Concerns resolved? Proceed to implementation?"))
-                    throw new OperationCanceledException("Implementation readiness concerns not resolved.");
+                    throw new OperationCanceledException(
+                        "Implementation readiness concerns not resolved."
+                    );
                 break;
 
             case ReadinessDecision.Fail:
                 ui.ShowError("Implementation readiness: FAIL. Cannot proceed.");
                 ui.ShowInfo("Please address the failures and re-run the loop.");
-                throw new InvalidOperationException($"Implementation readiness FAIL:\n{readinessResult.Response}");
+                throw new InvalidOperationException(
+                    $"Implementation readiness FAIL:\n{readinessResult.Response}"
+                );
         }
 
         // Mark epic as started — sanitize branch name for valid git ref chars
@@ -115,9 +132,7 @@ public class SprintReviewPhase(
     /// </summary>
     private static string SlugifyBranchName(string name)
     {
-        var slug = name.ToLowerInvariant()
-            .Replace(' ', '-')
-            .Replace('/', '-');
+        var slug = name.ToLowerInvariant().Replace(' ', '-').Replace('/', '-');
         // Remove git-invalid ref chars: ~, ^, :, ?, *, [, \, .., @{, consecutive dots
         slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[~^:?*\[\\]", "");
         slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\.{2,}", "-");
@@ -130,7 +145,8 @@ public class SprintReviewPhase(
         Data.Models.Sprint sprint,
         Epic epic,
         RalphLoopConfig config,
-        bool hasUxSpec)
+        bool hasUxSpec
+    )
     {
         var artifacts = config.PlanningArtifactsPath;
         var uxNote = hasUxSpec
@@ -178,25 +194,48 @@ public class SprintReviewPhase(
         var verdict = StoryLoopPhase.ExtractVerdict(response);
         if (verdict is not null)
         {
-            if (verdict.StartsWith("FAIL", StringComparison.OrdinalIgnoreCase)) return ReadinessDecision.Fail;
-            if (verdict.StartsWith("CONCERNS", StringComparison.OrdinalIgnoreCase)) return ReadinessDecision.Concerns;
-            if (verdict.StartsWith("PASS", StringComparison.OrdinalIgnoreCase)) return ReadinessDecision.Pass;
+            if (verdict.StartsWith("FAIL", StringComparison.OrdinalIgnoreCase))
+                return ReadinessDecision.Fail;
+            if (verdict.StartsWith("CONCERNS", StringComparison.OrdinalIgnoreCase))
+                return ReadinessDecision.Concerns;
+            if (verdict.StartsWith("PASS", StringComparison.OrdinalIgnoreCase))
+                return ReadinessDecision.Pass;
         }
 
         // Fallback whole-word scan — default to Concerns (conservative) if ambiguous
-        if (System.Text.RegularExpressions.Regex.IsMatch(response, @"\bFAIL\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (
+            System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bFAIL\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+        )
             return ReadinessDecision.Fail;
-        if (System.Text.RegularExpressions.Regex.IsMatch(response, @"\bCONCERNS\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (
+            System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bCONCERNS\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+        )
             return ReadinessDecision.Concerns;
-        if (System.Text.RegularExpressions.Regex.IsMatch(response, @"\bPASS\b",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (
+            System.Text.RegularExpressions.Regex.IsMatch(
+                response,
+                @"\bPASS\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            )
+        )
             return ReadinessDecision.Pass;
 
         // No recognizable verdict — default to Concerns rather than Pass
         return ReadinessDecision.Concerns;
     }
 
-    private enum ReadinessDecision { Pass, Concerns, Fail }
+    private enum ReadinessDecision
+    {
+        Pass,
+        Concerns,
+        Fail,
+    }
 }

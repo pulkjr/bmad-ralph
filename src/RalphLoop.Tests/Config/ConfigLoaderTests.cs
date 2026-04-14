@@ -129,11 +129,15 @@ public class ConfigLoaderTests : IDisposable
         Directory.CreateDirectory(bmadDir);
         File.WriteAllText(
             Path.Combine(bmadDir, "config.yaml"),
-            $"planning_artifacts: {_tempDir}/custom-output\n");
+            $"planning_artifacts: {_tempDir}/custom-output\n"
+        );
 
         var config = ConfigLoader.Load(_tempDir);
 
-        Assert.Equal(Path.GetFullPath(Path.Combine(_tempDir, "custom-output")), config.PlanningArtifactsPath);
+        Assert.Equal(
+            Path.GetFullPath(Path.Combine(_tempDir, "custom-output")),
+            config.PlanningArtifactsPath
+        );
     }
 
     [Fact]
@@ -143,11 +147,15 @@ public class ConfigLoaderTests : IDisposable
         Directory.CreateDirectory(bmadDir);
         File.WriteAllText(
             Path.Combine(bmadDir, "config.yaml"),
-            "planning_artifacts: \"{project-root}/artifacts\"\n");
+            "planning_artifacts: \"{project-root}/artifacts\"\n"
+        );
 
         var config = ConfigLoader.Load(_tempDir);
 
-        Assert.Equal(Path.GetFullPath(Path.Combine(_tempDir, "artifacts")), config.PlanningArtifactsPath);
+        Assert.Equal(
+            Path.GetFullPath(Path.Combine(_tempDir, "artifacts")),
+            config.PlanningArtifactsPath
+        );
     }
 
     [Fact]
@@ -158,7 +166,8 @@ public class ConfigLoaderTests : IDisposable
         Directory.CreateDirectory(bmadDir);
         File.WriteAllText(
             Path.Combine(bmadDir, "config.yaml"),
-            "project_name: my-project\ncommunication_language: en\n");
+            "project_name: my-project\ncommunication_language: en\n"
+        );
 
         var config = ConfigLoader.Load(_tempDir);
 

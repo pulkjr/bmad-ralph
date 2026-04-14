@@ -118,7 +118,8 @@ public sealed class LedgerDb : IAsyncDisposable, IDisposable
         try
         {
             await using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = "ALTER TABLE stories ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT ''";
+            cmd.CommandText =
+                "ALTER TABLE stories ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT ''";
             await cmd.ExecuteNonQueryAsync();
         }
         catch (SqliteException ex) when (ex.Message.Contains("duplicate column"))
