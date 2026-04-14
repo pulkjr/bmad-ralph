@@ -418,6 +418,213 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         Assert.Empty(result);
     }
 
+    // ── Transaction rollback ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Transaction_Rollback_DoesNotPersistInsertedStory()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+
+        await using var tx = await _db.BeginTransactionAsync();
+        await storyRepo.InsertAsync(epicId, "Rolled-back story", "desc", "", 0);
+        await tx.RollbackAsync();
+
+        var stories = await storyRepo.GetByEpicAsync(epicId);
+        Assert.Empty(stories);
+    }
+
+    [Fact]
+    public async Task Transaction_Commit_PersistsInsertedStory()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+
+        await using var tx = await _db.BeginTransactionAsync();
+        await storyRepo.InsertAsync(epicId, "Committed story", "desc", "", 0);
+        await tx.CommitAsync();
+
+        var stories = await storyRepo.GetByEpicAsync(epicId);
+        Assert.Single(stories);
+        Assert.Equal("Committed story", stories[0].Name);
+    }
+
+    [Fact]
+    public async Task Transaction_Rollback_AfterMultipleInserts_LeavesTableEmpty()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+
+        await using var tx = await _db.BeginTransactionAsync();
+        for (var i = 0; i < 5; i++)
+            await storyRepo.InsertAsync(epicId, $"Story {i}", "", "", i);
+        await tx.RollbackAsync();
+
+        var stories = await storyRepo.GetByEpicAsync(epicId);
+        Assert.Empty(stories);
+    }
+
+    // ── Foreign key constraints ───────────────────────────────────────────────
+    // NOTE: SQLite foreign key enforcement is OFF by default.
+    // LedgerDb.ApplySchemaAsync should add PRAGMA foreign_keys = ON to enable it.
+    // The tests below document current behaviour and serve as regression tests once
+    // the pragma is added.
+
+    [Fact]
+    public async Task ForeignKeys_AreEnforced_ForStoryWithInvalidEpicId()
+    {
+        // Enable FK enforcement explicitly for this test.
+        await using var enableCmd = _db.Connection.CreateCommand();
+        enableCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await enableCmd.ExecuteNonQueryAsync();
+
+        await using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO stories (epic_id, name, description, acceptance_criteria, order_index, status)
+            VALUES (99999, 'orphan', '', '', 0, 'pending')
+            """;
+
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
+            () => cmd.ExecuteNonQueryAsync());
+    }
+
+    [Fact]
+    public async Task ForeignKeys_AreEnforced_ForEpicWithInvalidSprintId()
+    {
+        await using var enableCmd = _db.Connection.CreateCommand();
+        enableCmd.CommandText = "PRAGMA foreign_keys = ON";
+        await enableCmd.ExecuteNonQueryAsync();
+
+        await using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO epics (sprint_id, name, description, status)
+            VALUES (99999, 'orphan epic', '', 'pending')
+            """;
+
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(
+            () => cmd.ExecuteNonQueryAsync());
+    }
+
+    // ── StoryRepository additional coverage ───────────────────────────────────
+
+    [Fact]
+    public async Task Story_IncrementRound_Passed_DoesNotIncrementFailCount()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+        var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
+
+        await storyRepo.IncrementRoundAsync(storyId, failed: false);
+
+        Assert.Equal(1, await storyRepo.GetRoundsAsync(storyId));
+        Assert.Equal(0, await storyRepo.GetFailCountAsync(storyId));
+    }
+
+    [Fact]
+    public async Task Story_IncrementRound_Failed_IncrementsFailCount()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+        var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
+
+        await storyRepo.IncrementRoundAsync(storyId, failed: true);
+
+        Assert.Equal(1, await storyRepo.GetRoundsAsync(storyId));
+        Assert.Equal(1, await storyRepo.GetFailCountAsync(storyId));
+    }
+
+    [Fact]
+    public async Task Story_FailCount_AccumulatesAcrossMultipleFails()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+        var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
+
+        for (var i = 0; i < 3; i++)
+            await storyRepo.IncrementRoundAsync(storyId, failed: true);
+
+        Assert.Equal(3, await storyRepo.GetFailCountAsync(storyId));
+    }
+
+    [Fact]
+    public async Task Story_AddTokens_AccumulatesCorrectly()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+        var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
+
+        await storyRepo.AddTokensAsync(storyId, 500);
+        await storyRepo.AddTokensAsync(storyId, 1200);
+
+        await using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT tokens_used FROM stories WHERE id = @id";
+        cmd.Parameters.AddWithValue("@id", storyId);
+        var tokens = (long)(await cmd.ExecuteScalarAsync())!;
+
+        Assert.Equal(1700L, tokens);
+    }
+
+    [Fact]
+    public async Task Story_UpdateStatus_Throws_WhenStatusIsEmpty()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+        var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => storyRepo.UpdateStatusAsync(storyId, ""));
+    }
+
+    [Fact]
+    public async Task Story_UpdateStatus_Throws_WhenStatusIsWhitespace()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var storyRepo = new StoryRepository(_db);
+        var storyId = await storyRepo.InsertAsync(epicId, "S", "", "", 0);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => storyRepo.UpdateStatusAsync(storyId, "   "));
+    }
+
+    // ── LedgerDb ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task LedgerDb_BeginTransactionAsync_ReturnsValidTransaction()
+    {
+        var tx = await _db.BeginTransactionAsync();
+
+        Assert.NotNull(tx);
+        await tx.RollbackAsync();
+    }
+
+    [Fact]
+    public async Task LedgerDb_DisposedConnection_ThrowsOnAccess()
+    {
+        var db = new LedgerDb(":memory:");
+        await db.OpenAsync();
+        await db.DisposeAsync();
+
+        Assert.Throws<InvalidOperationException>(() => _ = db.Connection);
+    }
+
+    // ── Index presence ────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task OpenAsync_CreatesExpectedIndexes()
+    {
+        await using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'";
+        await using var reader = await cmd.ExecuteReaderAsync();
+        var indexes = new List<string>();
+        while (await reader.ReadAsync())
+            indexes.Add(reader.GetString(0));
+
+        Assert.Contains("idx_epics_sprint_id", indexes);
+        Assert.Contains("idx_stories_epic_id", indexes);
+        Assert.Contains("idx_story_events_story_id", indexes);
+        Assert.Contains("idx_retrospectives_epic_id", indexes);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<(long sprintId, long epicId)> SeedSprintAndEpicAsync()

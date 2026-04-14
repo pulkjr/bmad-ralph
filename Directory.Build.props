@@ -1,0 +1,60 @@
+<Project>
+
+  <!--
+    Directory.Build.props — applied to every project under /src.
+
+    Purpose: enforce code quality, analysis, and formatting at build time so that
+    the same rules caught by roslynator in husky hooks are also flagged during
+    normal `dotnet build`.
+  -->
+
+  <PropertyGroup>
+    <!-- Enable Roslyn analysis features shipped with the SDK -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+
+    <!--
+      AnalysisMode = Recommended activates a curated set of CA rules.
+      "All" generates too much noise in .NET 10 SDK; start here and graduate rules
+      individually via .editorconfig severity overrides.
+    -->
+    <AnalysisMode>Recommended</AnalysisMode>
+
+    <!-- Report code-style diagnostics (IDE00xx) at build time, not just IDE. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Treat the generated code from MinVer / source generators as generated (suppress analysis) -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- Ensure deterministic builds across machines -->
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!--
+    Roslynator NuGet package — ships the RCS/RCSN diagnostics used in .editorconfig.
+    PrivateAssets=All means it is a dev-only tool: it doesn't flow into consumers of
+    the NuGet package.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Roslynator.Analyzers"
+                      Version="4.13.1"
+                      PrivateAssets="All"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers"
+                      Version="4.13.1"
+                      PrivateAssets="All"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
+  <!--
+    Microsoft.CodeAnalysis.NetAnalyzers is already included with .NET 10 SDK, but
+    pinning a version ensures all contributors and CI get the same rule set regardless
+    of SDK patch level.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers"
+                      Version="9.0.0"
+                      PrivateAssets="All"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
+</Project>

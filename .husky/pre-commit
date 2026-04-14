@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# .husky/pre-commit
+#
+# Runs fast quality checks on every commit. Target total time: ≤30s.
+# Exit non-zero on any failure — git will abort the commit.
+#
+# To skip in an emergency: git commit --no-verify
+# To install these hooks: bash scripts/setup-hooks.sh
+
+set -euo pipefail
+
+SOLUTION="RalphLoop.slnx"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# ── Colour helpers ───────────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+pass() { echo -e "${GREEN}✔${NC} $1"; }
+fail() { echo -e "${RED}✘${NC} $1"; exit 1; }
+warn() { echo -e "${YELLOW}⚠${NC} $1"; }
+step() { echo -e "\n${YELLOW}▶${NC} $1"; }
+
+# ── 1. C# formatter check ────────────────────────────────────────────────────
+step "csharpier --check"
+if command -v csharpier &>/dev/null; then
+  if csharpier check . 2>&1; then
+    pass "csharpier: all files formatted"
+  else
+    fail "csharpier: formatting issues found. Run 'csharpier .' to fix, then re-stage."
+  fi
+else
+  warn "csharpier not found — skipping formatter check. Install with: dotnet tool restore"
+fi
+
+# ── 2. Build (required for roslynator and unit tests) ────────────────────────
+step "dotnet build (incremental)"
+if ! dotnet build "$SOLUTION" --no-incremental -c Debug -v quiet 2>&1; then
+  fail "Build failed — fix compiler errors before committing."
+fi
+pass "Build succeeded"
+
+# ── 3. Roslynator static analysis ────────────────────────────────────────────
+step "roslynator analyze"
+if command -v roslynator &>/dev/null; then
+  # --severity error: only fail pre-commit on errors; warnings are reported but do not block.
+  # Upgrade to --severity warning after the team has addressed the initial backlog.
+  if roslynator analyze "$SOLUTION" \
+       --severity error \
+       --output roslynator-pre-commit.xml \
+       --output-format xml 2>&1 | grep -E "(error|Error)" | grep -v "^$"; then
+    warn "roslynator: errors found — see roslynator-pre-commit.xml"
+    rm -f roslynator-pre-commit.xml
+    exit 1
+  fi
+  rm -f roslynator-pre-commit.xml
+  pass "roslynator: no errors"
+else
+  warn "roslynator not found — skipping. Install with: dotnet tool restore"
+fi
+
+# ── 4. Fast unit tests (excludes Data + Integration namespaces) ──────────────
+step "dotnet test (unit subset)"
+# Filter excludes tests in the Data and Integration namespaces (slower I/O tests).
+# These run in the pre-push hook instead.
+UNIT_FILTER="FullyQualifiedName!~RalphLoop.Tests.Data&FullyQualifiedName!~RalphLoop.Tests.Integration"
+if ! dotnet test "$SOLUTION" \
+     --no-build \
+     --filter "$UNIT_FILTER" \
+     --verbosity quiet \
+     --logger "console;verbosity=quiet" 2>&1; then
+  fail "Unit tests failed — fix before committing."
+fi
+pass "Unit tests passed"
+
+# ── 5. Security scan on changed files only ───────────────────────────────────
+step "semgrep (changed files)"
+# Collect staged .cs files
+CHANGED_CS=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.cs$' || true)
+
+if [ -n "$CHANGED_CS" ]; then
+  if command -v semgrep &>/dev/null; then
+    # Scan only staged C# files; p/csharp covers injection and common .NET CVEs
+    # shellcheck disable=SC2086
+    if SEMGREP_SEND_METRICS=off semgrep \
+         --config=p/csharp \
+         --severity ERROR \
+         --quiet \
+         $CHANGED_CS 2>&1; then
+      pass "semgrep: no critical findings in changed files"
+    else
+      fail "semgrep: critical security issues found in staged files — see output above."
+    fi
+  else
+    warn "semgrep not found — skipping security scan."
+  fi
+else
+  pass "semgrep: no staged .cs files to scan"
+fi
+
+# ── 6. Validate ralph-loop.json ──────────────────────────────────────────────
+step "ralph-loop.json validation"
+if [ -f "ralph-loop.json" ]; then
+  if python3 -c "import json, sys; json.load(open('ralph-loop.json'))" 2>&1; then
+    pass "ralph-loop.json is valid JSON"
+  elif command -v jq &>/dev/null && jq empty ralph-loop.json 2>&1; then
+    pass "ralph-loop.json is valid JSON (via jq)"
+  else
+    fail "ralph-loop.json is not valid JSON — fix before committing."
+  fi
+fi
+
+# ── 7. shellcheck on staged .sh files ────────────────────────────────────────
+step "shellcheck (changed .sh files)"
+CHANGED_SH=$(git diff --cached --name-only --diff-filter=ACMR | grep '\.sh$' || true)
+
+if [ -n "$CHANGED_SH" ]; then
+  if command -v shellcheck &>/dev/null; then
+    # shellcheck disable=SC2086
+    if shellcheck -S warning $CHANGED_SH 2>&1; then
+      pass "shellcheck: all .sh files clean"
+    else
+      fail "shellcheck: issues found in staged .sh files — see output above."
+    fi
+  else
+    warn "shellcheck not found — skipping shell script linting."
+  fi
+else
+  pass "shellcheck: no staged .sh files to check"
+fi
+
+echo -e "\n${GREEN}Pre-commit checks passed.${NC}"

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# .husky/pre-push
+#
+# Runs the full quality gate before pushing to remote.
+# This is heavier than pre-commit — takes ~60–120s on a cold build.
+#
+# To skip in an emergency: git push --no-verify
+# To install these hooks: bash scripts/setup-hooks.sh
+
+set -euo pipefail
+
+SOLUTION="RalphLoop.slnx"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# ── Colour helpers ───────────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
+pass() { echo -e "${GREEN}✔${NC} $1"; }
+fail() { echo -e "${RED}✘${NC} $1"; exit 1; }
+warn() { echo -e "${YELLOW}⚠${NC} $1"; }
+step() { echo -e "\n${YELLOW}▶${NC} $1"; }
+
+# Minimum line coverage % required to pass. Raise this incrementally as
+# coverage improves. Start at 60 — a realistic baseline for a new project.
+MIN_COVERAGE=60
+
+# ── 1. Full test suite ───────────────────────────────────────────────────────
+step "dotnet test (full suite + coverage)"
+RESULTS_DIR="TestResults"
+rm -rf "$RESULTS_DIR"
+
+if ! dotnet test "$SOLUTION" \
+     --configuration Release \
+     --collect:"XPlat Code Coverage" \
+     --results-directory "$RESULTS_DIR" \
+     --verbosity normal \
+     --logger "console;verbosity=normal" 2>&1; then
+  fail "Test suite failed. Fix all failing tests before pushing."
+fi
+pass "All tests passed"
+
+# ── 2. Coverage threshold enforcement ────────────────────────────────────────
+step "Code coverage threshold (>= ${MIN_COVERAGE}%)"
+
+COVERAGE_XML=$(find "$RESULTS_DIR" -name "coverage.cobertura.xml" | head -1)
+
+if [ -z "$COVERAGE_XML" ]; then
+  warn "Coverage file not found — skipping threshold check."
+  warn "Ensure coverlet.collector is installed: dotnet add package coverlet.collector"
+else
+  # Extract line-rate from Cobertura XML (0.0–1.0 scale) and compare
+  LINE_RATE=$(grep -o 'line-rate="[^"]*"' "$COVERAGE_XML" | head -1 | grep -o '[0-9.]*')
+  if [ -z "$LINE_RATE" ]; then
+    warn "Could not parse line-rate from coverage XML — skipping threshold."
+  else
+    LINE_PCT=$(python3 -c "print(int(float('$LINE_RATE') * 100))")
+    if [ "$LINE_PCT" -lt "$MIN_COVERAGE" ]; then
+      fail "Coverage is ${LINE_PCT}% — below the required ${MIN_COVERAGE}%. Add tests before pushing."
+    fi
+    pass "Coverage: ${LINE_PCT}% (≥ ${MIN_COVERAGE}%)"
+
+    # Generate an HTML report for local review (not required to pass)
+    if command -v reportgenerator &>/dev/null; then
+      reportgenerator \
+        -reports:"$COVERAGE_XML" \
+        -targetdir:"coverage-report" \
+        -reporttypes:Html \
+        -verbosity:Error 2>/dev/null && \
+        echo "    Coverage report: coverage-report/index.html"
+    fi
+  fi
+fi
+
+# ── 3. Roslynator full analysis (warnings + errors) ──────────────────────────
+step "roslynator analyze --severity warning"
+if command -v roslynator &>/dev/null; then
+  ROSLYNATOR_OUT="roslynator-pre-push.xml"
+  roslynator analyze "$SOLUTION" \
+    --severity warning \
+    --output "$ROSLYNATOR_OUT" \
+    --output-format xml 2>&1
+
+  # Count diagnostic entries in XML output
+  WARNING_COUNT=$(grep -c '<Diagnostic ' "$ROSLYNATOR_OUT" 2>/dev/null || echo 0)
+  rm -f "$ROSLYNATOR_OUT"
+
+  if [ "$WARNING_COUNT" -gt 0 ]; then
+    warn "roslynator: ${WARNING_COUNT} warning(s) found (see output above)."
+    warn "These are non-blocking for now. Set --severity error here once the backlog is cleared."
+    # To make warnings blocking, replace the warn lines above with:
+    # fail "roslynator: ${WARNING_COUNT} warnings — fix before pushing."
+  else
+    pass "roslynator: no warnings"
+  fi
+else
+  warn "roslynator not found — skipping. Install with: dotnet tool restore"
+fi
+
+# ── 4. Security scan — full src/ ─────────────────────────────────────────────
+step "semgrep (full src/ scan)"
+if command -v semgrep &>/dev/null; then
+  if SEMGREP_SEND_METRICS=off semgrep \
+       --config=p/csharp \
+       --severity ERROR \
+       --quiet \
+       src/ 2>&1; then
+    pass "semgrep: no critical findings"
+  else
+    fail "semgrep: critical security issues found — review output above before pushing."
+  fi
+else
+  warn "semgrep not found — skipping."
+fi
+
+echo -e "\n${GREEN}Pre-push checks passed. Pushing...${NC}"
