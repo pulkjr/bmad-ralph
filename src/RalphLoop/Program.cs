@@ -11,8 +11,34 @@ using RalphLoop.Loop;
 using RalphLoop.Loop.Phases;
 using RalphLoop.UI;
 using Spectre.Console;
+using System.Reflection;
 
 // ── Entry point ───────────────────────────────────────────────────────────────
+
+// Handle flags that should not require a project path.
+if (args.Length == 1 && args[0] is "--version" or "-v")
+{
+    var infoVersion = System.Reflection.Assembly.GetExecutingAssembly()
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>()
+        ?.InformationalVersion ?? "unknown";
+    Console.WriteLine($"ralph-loop {infoVersion}");
+    return 0;
+}
+
+if (args.Length == 1 && args[0] is "--help" or "-h")
+{
+    AnsiConsole.Write(new FigletText("Ralph Loop").Color(Color.Blue));
+    AnsiConsole.MarkupLine("[grey]BMAD Agentic Development Loop — powered by GitHub Copilot SDK[/]");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Usage:[/] ralph-loop [[[grey]project-path[/]]]");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("  [grey]project-path[/]   Path to the project root (default: current directory)");
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Options:[/]");
+    AnsiConsole.MarkupLine("  [grey]--version, -v[/]  Print the version and exit");
+    AnsiConsole.MarkupLine("  [grey]--help,    -h[/]  Print this help and exit");
+    return 0;
+}
 
 AnsiConsole.Write(new FigletText("Ralph Loop").Color(Color.Blue));
 AnsiConsole.MarkupLine("[grey]BMAD Agentic Development Loop — powered by GitHub Copilot SDK[/]");

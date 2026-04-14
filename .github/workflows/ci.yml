@@ -74,7 +74,9 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # Strip the leading "v" from the tag to get a valid NuGet version string.
+      # Strip the leading "v" from the tag to get a plain version string used for
+      # artifact naming below. MinVer reads the same tag at build time, so this
+      # value is no longer passed to dotnet pack.
       # e.g. refs/tags/v1.2.3 → 1.2.3
       - name: Resolve package version from tag
         id: version
@@ -83,14 +85,15 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore ${{ env.PROJECT_PATH }}
 
+      # MinVer reads the version from git tags at build time, so no explicit
+      # /p:Version override is needed. The tag is already checked out above.
       - name: Pack NuGet tool package
         run: |
           dotnet pack ${{ env.PROJECT_PATH }} \
             --no-restore \
             --configuration Release \
             --output ./nupkg \
-            /p:Version=${{ steps.version.outputs.VERSION }} \
-            /p:PackageReleaseNotes="Release ${{ steps.version.outputs.VERSION }} — see CHANGELOG or tag notes for details."
+            /p:PackageReleaseNotes="Release — see CHANGELOG or tag notes for details."
 
       - name: Register GitHub Packages NuGet source
         run: |
