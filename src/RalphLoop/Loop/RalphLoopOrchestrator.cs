@@ -19,7 +19,8 @@ public class RalphLoopOrchestrator(
     RetrospectivePhase phase5,
     EpicRepository epics,
     StoryRepository stories,
-    ConsoleUI ui)
+    ConsoleUI ui,
+    RalphLoopConfig config)
 {
     public async Task RunAsync(CancellationToken ct = default)
     {
@@ -37,7 +38,17 @@ public class RalphLoopOrchestrator(
         if (epicList.Count == 0)
         {
             ui.ShowWarning("No pending epics found for this sprint.");
-            ui.ShowInfo("Add epics to ledger.db or use the BMAD planning workflow to create them.");
+            ui.ShowInfo("The sprint planning agent did not populate ledger.db.");
+            ui.ShowInfo($"Planning artifacts directory: {config.PlanningArtifactsPath}");
+            var artifacts = PlanningArtifacts.Discover(config.PlanningArtifactsPath);
+            if (!artifacts.IsViable)
+            {
+                ui.ShowInfo("No viable planning artifacts were found. Ralph Loop accepts:");
+                ui.ShowInfo("  • epics.md                       ← BMAD epics breakdown (best)");
+                ui.ShowInfo("  • prd.md                         ← Product Requirements Document");
+                ui.ShowInfo("  • prd-distillate/                ← BMAD PRD distillate directory");
+                ui.ShowInfo("  • validation-report-prd-*.md     ← Validated PRD report");
+            }
             return;
         }
 
