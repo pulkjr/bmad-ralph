@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RalphLoop.Tests/RalphLoop.Tests.csproj" />
+    <Project Path="src/RalphLoop/RalphLoop.csproj" />
+  </Folder>
+</Solution>
