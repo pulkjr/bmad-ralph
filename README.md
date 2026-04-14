@@ -12,21 +12,23 @@ complete.
 
 ### 1. Install system dependencies
 
-| Dependency | Minimum version | Notes |
-| ---------- | --------------- | ----- |
-| [.NET SDK](https://dotnet.microsoft.com/download) | 8.0 | Required to run or build Ralph Loop |
-| `git` | any recent | Must be on `PATH` |
-| `bash` | any recent | Must be on `PATH` (Git Bash works on Windows) |
-| [`entire`](https://entire.io) | latest | Optional but recommended for session capture |
+| Dependency                                        | Minimum version | Notes                                         |
+|---------------------------------------------------|-----------------|-----------------------------------------------|
+| [.NET SDK](https://dotnet.microsoft.com/download) | 10.0            | Required to run or build Ralph Loop           |
+| `git`                                             | any recent      | Must be on `PATH`                             |
+| `bash`                                            | any recent      | Must be on `PATH` (Git Bash works on Windows) |
+| [`entire`](https://entire.io)                     | latest          | Optional but recommended for session capture  |
 
 ### 2. Install the `ralph-loop` tool
 
 **From NuGet (recommended):**
+
 ```bash
 dotnet tool install --global RalphLoop
 ```
 
 **From source:**
+
 ```bash
 git clone <repo-url>
 cd ralph-loop
@@ -36,6 +38,7 @@ dotnet run --project src/RalphLoop -- [project-path]
 ```
 
 Verify the installation:
+
 ```bash
 ralph-loop --version
 ```
@@ -43,13 +46,14 @@ ralph-loop --version
 ### 3. Create `ralph-loop.json`
 
 Place a `ralph-loop.json` in the root of the project you want Ralph Loop to build.
-At minimum, you only need an empty object — all values have defaults:
+At minimum, you only need an empty object - all values have defaults:
 
 ```json
 {}
 ```
 
 A more complete starting config:
+
 ```json
 {
   "projectPath": ".",
@@ -73,22 +77,25 @@ _bmad-output/
 ├── prd.md                        # Product Requirements Document (required)
 ├── architecture.md               # Architectural decisions (required)
 ├── project-context.md            # Project conventions (required)
-└── ux-design-specification.md    # UX spec (optional — enables UX agent & smoke tests)
+└── ux-design-specification.md    # UX spec (optional - enables UX agent & smoke tests)
 ```
 
 ### 5. Run Ralph Loop
 
 From your project root:
+
 ```bash
 ralph-loop
 ```
 
 Or pass the project path explicitly:
+
 ```bash
 ralph-loop /path/to/your/project
 ```
 
 Ralph Loop will:
+
 1. Validate prerequisites (`git`, `bash`)
 2. Open (or create) `ledger.db`
 3. Start the GitHub Copilot SDK process
@@ -114,16 +121,56 @@ Press `Ctrl+C` at any time to stop gracefully. Re-running the same command resum
 
 ## Configuration (`ralph-loop.json`)
 
+All keys are optional — omitting any key uses its default. The resolver automatically
+substitutes any model that is unavailable on your Copilot subscription with the best
+available 1x (non-opus) alternative and warns you at startup.
+
+### Complete default configuration
+
+```json
+{
+  "projectPath": ".",
+  "ledgerDbPath": "<projectPath>/ledger.db",
+  "skillDirectories": {
+    "shared": "~/.bmad/skills",
+    "project": ".bmad-core/skills"
+  },
+  "models": {
+    "default": "gpt-5",
+    "developer": "gpt-5.3-codex",
+    "architect": "claude-sonnet-4.6",
+    "productManager": "claude-sonnet-4.6",
+    "qa": "claude-sonnet-4.6",
+    "security": "gpt-5",
+    "techWriter": "claude-sonnet-4.5",
+    "uxDesigner": "claude-sonnet-4.5",
+    "partyMode": "claude-sonnet-4.6"
+  },
+  "git": {
+    "autoCommit": true,
+    "mergeStrategy": "fast-forward",
+    "useEntire": true
+  },
+  "maxQaFailsBeforeSwarm": 3,
+  "maxStoryRounds": 10,
+  "enableAgentTui": true,
+  "appCommand": ""
+}
+```
+
+### Key reference
+
 | Key                        | Default                   | Description                                                       |
 | -------------------------- | ------------------------- | ----------------------------------------------------------------- |
 | `projectPath`              | `.`                       | Root of the project being built                                   |
 | `ledgerDbPath`             | `<projectPath>/ledger.db` | SQLite database tracking sprints, epics, stories                  |
 | `skillDirectories.shared`  | `~/.bmad/skills`          | Shared BMAD agent skills                                          |
 | `skillDirectories.project` | `.bmad-core/skills`       | Project-local agent skills                                        |
+| `models.default`           | `gpt-5`                   | Fallback model for Scrum Master and any unspecified agents        |
 | `models.developer`         | `gpt-5.3-codex`           | Model for the Developer agent (Amelia)                            |
 | `models.architect`         | `claude-sonnet-4.6`       | Model for the Architect agent (Winston)                           |
 | `models.productManager`    | `claude-sonnet-4.6`       | Model for the PM agent (John)                                     |
-| `models.qa`                | `claude-sonnet-4.6`       | Model for the QA agent                                            |
+| `models.qa`                | `claude-sonnet-4.6`       | Model for the QA agent — always resolved to differ from Developer |
 | `models.security`          | `gpt-5`                   | Model for the Security Analyst                                    |
 | `models.techWriter`        | `claude-sonnet-4.5`       | Model for Tech Writer (Paige)                                     |
 | `models.uxDesigner`        | `claude-sonnet-4.5`       | Model for UX Designer (Sally)                                     |
@@ -135,6 +182,11 @@ Press `Ctrl+C` at any time to stop gracefully. Re-running the same command resum
 | `maxStoryRounds`           | `10`                      | Hard cap on dev→QA loops per story before marking it failed       |
 | `enableAgentTui`           | `true`                    | Allow `agent-tui` for TUI smoke tests on UX stories               |
 | `appCommand`               | `""`                      | Override the auto-detected run command (`./run`, `./start`, etc.) |
+
+> **Model availability:** At startup, Ralph Loop calls `ListModelsAsync()` to discover which
+> models your Copilot subscription includes. Any configured model that is unavailable is
+> silently replaced with the best available 1x (non-opus) alternative. The QA agent is
+> always assigned a different model than the Developer agent.
 
 The planning artifacts path is auto-resolved from `_bmad/bmm/config.yaml`
 (`planning_artifacts` key). If that file is absent, `_bmad-output/` is used.
@@ -256,14 +308,17 @@ Program.cs
 | Developer              | Amelia  | `gpt-5.3-codex`     | Implements stories; fixes QA and build failures    |
 | Architect              | Winston | `claude-sonnet-4.6` | Architecture review; implementation readiness      |
 | Product Manager        | John    | `claude-sonnet-4.6` | PRD compliance; scope-drift detection              |
-| QA Engineer            | -       | `claude-sonnet-4.6` | Story acceptance review; verdict emitter           |
-| Security Analyst       | -       | `gpt-5`             | OWASP / devskim / semgrep review                   |
+| QA Engineer            | -       | `claude-sonnet-4.6` ¹ | Story acceptance review; verdict emitter         |
+| Security Analyst       | -       | `gpt-5` ²           | OWASP / devskim / semgrep review                   |
 | Tech Writer            | Paige   | `claude-sonnet-4.5` | Documentation requirements                         |
 | UX Designer            | Sally   | `claude-sonnet-4.5` | UX spec validation; `agent-tui` flows              |
-| Scrum Master           | -       | `gpt-5` (default)   | Sprint planning; retrospective; ledger scaffolding |
+| Scrum Master           | -       | `gpt-5` ² (default) | Sprint planning; retrospective; ledger scaffolding |
 | Skeptic                | -       | party model         | Adversarial assumption challenger                  |
 | Edge Case Hunter       | -       | party model         | Boundary condition finder                          |
 | Party-mode Facilitator | -       | `claude-sonnet-4.6` | Synthesizes multi-agent discussions                |
+
+¹ QA is always assigned a different model than Developer to ensure independent verification.
+² If `gpt-5` is not available on your subscription it is automatically replaced at startup.
 
 All agents that receive user/epic content have an **anti-prompt-injection** system message
 appended: XML-tagged blocks (`<story>`, `<qa-failure-report>`, etc.) are treated as data,

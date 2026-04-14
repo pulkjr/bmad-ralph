@@ -117,9 +117,31 @@ await db.OpenAsync();
 var copilotClient = sp.GetRequiredService<CopilotClient>();
 await copilotClient.StartAsync();
 
-// ── Check entire.io ────────────────────────────────────────────────────────
 var git = sp.GetRequiredService<GitManager>();
 var ui = sp.GetRequiredService<ConsoleUI>();
+
+// ── Resolve models against the user's actual Copilot subscription ──────────
+// Substitutes any unavailable model with the best available 1x alternative
+// and ensures QA and Developer never share the same model.
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    ui.ShowWarning("Cancellation requested — finishing current step...");
+    cts.Cancel();
+};
+
+try
+{
+    await ModelResolver.ResolveAsync(copilotClient, config.Models, ui, cts.Token);
+}
+catch (InvalidOperationException ex)
+{
+    ui.ShowError(ex.Message);
+    return 1;
+}
+
+// ── Check entire.io ────────────────────────────────────────────────────────
 
 if (config.Git.UseEntire && !await git.IsEntireEnabledAsync())
 {
@@ -132,14 +154,6 @@ if (config.Git.UseEntire && !await git.IsEntireEnabledAsync())
 }
 
 // ── Run ────────────────────────────────────────────────────────────────────
-using var cts = new CancellationTokenSource();
-Console.CancelKeyPress += (_, e) =>
-{
-    e.Cancel = true;
-    ui.ShowWarning("Cancellation requested — finishing current step...");
-    cts.Cancel();
-};
-
 try
 {
     var orchestrator = sp.GetRequiredService<RalphLoopOrchestrator>();

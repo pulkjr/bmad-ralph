@@ -35,17 +35,11 @@ public class SprintPlanningPhase(
         if (activeSprint is null)
         {
             ui.ShowWarning("No active sprint found in ledger.db.");
-            if (ui.Confirm("Would you like to create a new sprint now?"))
-            {
-                var name = ui.Ask("Sprint name:");
-                var id = await sprints.InsertAsync(name);
-                activeSprint = new Sprint { Id = id, Name = name, Status = SprintStatus.Active };
-                ui.ShowSuccess($"Sprint '{name}' created.");
-            }
-            else
-            {
-                throw new InvalidOperationException("No active sprint — cannot continue.");
-            }
+            var all = await sprints.GetAllAsync();
+            var name = $"Sprint {all.Count + 1}";
+            var id = await sprints.InsertAsync(name);
+            activeSprint = new Sprint { Id = id, Name = name, Status = SprintStatus.Active };
+            ui.ShowSuccess($"Sprint '{name}' created.");
         }
 
         ui.ShowInfo($"Active sprint: [{activeSprint.Id}] {activeSprint.Name}");
