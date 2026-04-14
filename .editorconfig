@@ -41,6 +41,22 @@ dotnet_diagnostic.S3329.severity = error      # IV reuse in cipher
 dotnet_diagnostic.S4790.severity = warning    # Weak hashing algorithm (MD5/SHA1)
 dotnet_diagnostic.S3330.severity = warning    # Cookie without HttpOnly flag
 
+# ── Roslynator (RCS) — C# idiom and quality rules ────────────────────────────
+# These complement SonarAnalyzer (S-series) with almost zero overlap.
+# Roslynator focuses on C# language idioms; Sonar focuses on security/reliability.
+dotnet_diagnostic.RCS1036.severity = warning  # Remove unnecessary blank line
+dotnet_diagnostic.RCS1049.severity = suggestion # Simplify boolean comparison
+dotnet_diagnostic.RCS1061.severity = suggestion # Merge if statements into &&
+dotnet_diagnostic.RCS1077.severity = warning  # Optimize LINQ method chain
+dotnet_diagnostic.RCS1084.severity = warning  # Use coalesce expression instead of if null check
+dotnet_diagnostic.RCS1118.severity = warning  # Mark local variable as const
+dotnet_diagnostic.RCS1124.severity = suggestion # Inline local variable
+dotnet_diagnostic.RCS1155.severity = warning  # Use StringComparison when comparing strings
+dotnet_diagnostic.RCS1163.severity = warning  # Unused parameter (non-test code)
+dotnet_diagnostic.RCS1168.severity = warning  # Parameter name differs from base declaration
+dotnet_diagnostic.RCS1197.severity = warning  # Optimize StringBuilder.Append call
+dotnet_diagnostic.RCS1233.severity = suggestion # Use short-circuit evaluation
+
 # ── Dead code ────────────────────────────────────────────────────────────────
 dotnet_diagnostic.IDE0051.severity = warning  # Remove unused private member
 dotnet_diagnostic.IDE0052.severity = warning  # Remove unread private member
@@ -85,6 +101,7 @@ dotnet_naming_style.end_in_async.required_suffix = Async
 # ── Test projects — relax rules that fire falsely on xUnit test methods ──────
 [src/RalphLoop.Tests/**/*.cs]
 dotnet_diagnostic.IDE0060.severity = none       # Unused parameter (data-driven test params)
+dotnet_diagnostic.RCS1163.severity = none       # Unused parameter (xUnit [Theory] params)
 dotnet_diagnostic.CA1822.severity = none        # Mark as static (test methods can't be static)
 dotnet_diagnostic.CA2000.severity = none        # Dispose before scope — test helpers are intentionally short-lived
 dotnet_diagnostic.S2068.severity = none         # Hardcoded credentials — test fixtures may contain fake credentials

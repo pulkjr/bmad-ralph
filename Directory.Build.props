@@ -30,9 +30,27 @@
   </PropertyGroup>
 
   <!--
+    Roslynator — 500+ C# code-quality rules (RCS/RCSN series).
+    Covers: null coalescing, LINQ correctness, dead code, async patterns, simplifications,
+    and C# idiom enforcement. Use `roslynator fix` to batch-apply fixes.
+    PrivateAssets=All: dev-only, does not flow into NuGet consumers.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Roslynator.Analyzers"
+                      Version="4.15.0"
+                      PrivateAssets="All"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+    <PackageReference Include="Roslynator.CodeAnalysis.Analyzers"
+                      Version="4.15.0"
+                      PrivateAssets="All"
+                      IncludeAssets="runtime; build; native; contentfiles; analyzers" />
+  </ItemGroup>
+
+  <!--
     SonarAnalyzer.CSharp — security, reliability, and code-smell rules via Roslyn.
     Covers OS command injection (S2076), path traversal (S2083), hardcoded credentials
     (S2068), and hundreds of reliability/maintainability rules.
+    Complements Roslynator: almost zero rule overlap, each fills different gaps.
     PrivateAssets=All: dev-only, does not flow into NuGet consumers.
   -->
   <ItemGroup>
