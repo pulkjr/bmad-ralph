@@ -103,6 +103,15 @@ if (prereqErrors.Count > 0)
     return 1;
 }
 
+// ── Validate BMAD skills ───────────────────────────────────────────────────
+var resolvedSkillDirs = SkillDirectoryResolver.Resolve(config);
+var missingSkills = BmadSkillValidator.Check(resolvedSkillDirs);
+if (missingSkills.Count > 0)
+{
+    BmadSkillValidator.PrintError(missingSkills, config);
+    return 1;
+}
+
 // ── Wire up dependencies ───────────────────────────────────────────────────
 var services = new ServiceCollection();
 

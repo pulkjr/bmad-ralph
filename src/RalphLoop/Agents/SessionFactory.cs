@@ -29,6 +29,19 @@ public class SessionFactory(RalphLoopConfig config)
 {
     private readonly List<string> _skillDirs = SkillDirectoryResolver.Resolve(config);
 
+    /// <summary>
+    /// The BMAD agent skills that must be installed for the loop to function.
+    /// Used by <see cref="BmadSkillValidator"/> to detect missing installations.
+    /// </summary>
+    public static IReadOnlyList<(string SkillId, string DisplayName)> RequiredSkills { get; } =
+    [
+        ("bmad-agent-dev", "Developer (Amelia)"),
+        ("bmad-agent-architect", "Architect (Winston)"),
+        ("bmad-agent-pm", "Product Manager (John)"),
+        ("bmad-agent-tech-writer", "Tech Writer (Paige)"),
+        ("bmad-agent-ux-designer", "UX Designer (Sally)"),
+    ];
+
     // Anti-injection instruction for agents that receive XML-tagged user/agent data.
     // Only applied to agents whose prompts contain <story>, <qa-failure-report>, etc.
     private const string AntiInjectionNote =
