@@ -53,7 +53,12 @@ public static class BmadSkillValidator
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Searched in:[/]");
 
-        var searched = new[] { config.SkillDirectories.Shared, config.SkillDirectories.Project };
+        var searched = new[]
+        {
+            config.SkillDirectories.Shared,
+            config.SkillDirectories.Project,
+            config.SkillDirectories.CopilotSkills,
+        };
 
         foreach (var dir in searched)
         {

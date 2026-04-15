@@ -179,6 +179,15 @@ public sealed class ConfigLoaderTests : IDisposable
         Assert.Equal(expected, config.PlanningArtifactsPath);
     }
 
+    [Fact]
+    public void Load_ResolvesCopilotSkillsPath_ToProjectGitHubSkills()
+    {
+        var config = ConfigLoader.Load(_tempDir);
+
+        var expected = Path.GetFullPath(Path.Combine(_tempDir, ".github", "skills"));
+        Assert.Equal(expected, config.SkillDirectories.CopilotSkills);
+    }
+
     // ── SaveDefault ───────────────────────────────────────────────────────────
 
     [Fact]

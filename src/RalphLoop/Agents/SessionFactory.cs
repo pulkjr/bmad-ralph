@@ -18,6 +18,9 @@ public static class SkillDirectoryResolver
         if (Directory.Exists(config.SkillDirectories.Project))
             dirs.Add(config.SkillDirectories.Project);
 
+        if (Directory.Exists(config.SkillDirectories.CopilotSkills))
+            dirs.Add(config.SkillDirectories.CopilotSkills);
+
         return dirs;
     }
 }

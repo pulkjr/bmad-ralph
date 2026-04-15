@@ -30,6 +30,13 @@ public class SkillDirectoriesConfig
 {
     public string Shared { get; set; } = "~/.bmad/skills";
     public string Project { get; set; } = ".bmad-core/skills";
+
+    /// <summary>
+    /// GitHub Copilot skill install location (project-relative).
+    /// Skills installed via <c>npx bmad-method install</c> with the Copilot target
+    /// land here automatically.
+    /// </summary>
+    public string CopilotSkills { get; set; } = ".github/skills";
 }
 
 public class ModelsConfig

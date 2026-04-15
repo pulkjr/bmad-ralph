@@ -48,6 +48,9 @@ public static class ConfigLoader
         config.SkillDirectories.Project = ResolvePath(
             Path.Combine(config.ProjectPath, config.SkillDirectories.Project)
         );
+        config.SkillDirectories.CopilotSkills = ResolvePath(
+            Path.Combine(config.ProjectPath, config.SkillDirectories.CopilotSkills)
+        );
 
         // Set ledger.db path
         config.LedgerDbPath = Path.Combine(config.ProjectPath, "ledger.db");
