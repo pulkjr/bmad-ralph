@@ -102,6 +102,21 @@ public class StoryRepository(LedgerDb db)
         return Convert.ToInt32(await cmd.ExecuteScalarAsync());
     }
 
+    public async Task UpdateRefinementAsync(
+        long storyId,
+        string description,
+        string acceptanceCriteria
+    )
+    {
+        await using var cmd = db.Connection.CreateCommand();
+        cmd.CommandText =
+            "UPDATE stories SET description = @d, acceptance_criteria = @ac WHERE id = @id";
+        cmd.Parameters.AddWithValue("@d", description);
+        cmd.Parameters.AddWithValue("@ac", acceptanceCriteria);
+        cmd.Parameters.AddWithValue("@id", storyId);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public async Task MarkCompleteAsync(long storyId)
     {
         await using var cmd = db.Connection.CreateCommand();

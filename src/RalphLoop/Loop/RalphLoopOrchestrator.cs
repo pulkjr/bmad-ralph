@@ -80,7 +80,8 @@ public class RalphLoopOrchestrator(
         ui.ShowSection($"═══ Epic: {epic.Name} ═══");
 
         // Phase 2: sprint review + implementation readiness
-        var startedEpic = await phase2.RunAsync(sprint, epic, ct);
+        var reviewResult = await phase2.RunAsync(sprint, epic, ct);
+        var startedEpic = reviewResult.Epic;
 
         // Load or create stories for this epic
         var storyList = (await stories.GetByEpicAsync(epic.Id))
@@ -96,8 +97,8 @@ public class RalphLoopOrchestrator(
         }
         else
         {
-            // Phase 3: story-by-story development loop
-            await phase3.RunAsync(startedEpic, storyList, ct);
+            // Phase 3: story-by-story development loop (review notes give dev context from Phase 2)
+            await phase3.RunAsync(startedEpic, storyList, reviewResult.ReviewNotes, ct);
         }
 
         // Phase 4: epic completion reviews

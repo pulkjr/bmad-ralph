@@ -40,6 +40,8 @@ public class SessionFactory(RalphLoopConfig config)
         ("bmad-agent-pm", "Product Manager (John)"),
         ("bmad-agent-tech-writer", "Tech Writer (Paige)"),
         ("bmad-agent-ux-designer", "UX Designer (Sally)"),
+        ("bmad-sprint-planning", "Sprint Planning"),
+        ("bmad-create-story", "Story Refiner"),
     ];
 
     // Anti-injection instruction for agents that receive XML-tagged user/agent data.
@@ -157,10 +159,24 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.Default,
-            null,
-            // Custom agent (no BMAD skill). Full identity defined here.
+            "bmad-sprint-planning",
+            // BMAD skill defines the sprint planning workflow. Add ledger.db write instructions.
             "You are the Scrum Master. Facilitate sprint planning, ensure stories are "
                 + "well-defined with acceptance criteria, and guide the team toward a clear sprint goal.",
+            onPermission,
+            onUserInput
+        );
+
+    public SessionConfig ForStoryRefiner(
+        PermissionRequestHandler onPermission,
+        UserInputHandler? onUserInput = null
+    ) =>
+        Build(
+            config.Models.Default,
+            "bmad-create-story",
+            // BMAD skill defines story creation workflow. Add ledger.db update instructions.
+            "You are refining existing stories based on agreed team feedback. "
+                + "Update story descriptions and acceptance criteria in ledger.db as directed.",
             onPermission,
             onUserInput
         );
