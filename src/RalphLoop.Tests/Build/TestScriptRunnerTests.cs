@@ -3,7 +3,7 @@ using Xunit;
 
 namespace RalphLoop.Tests.Build;
 
-public class TestScriptRunnerTests : IDisposable
+public sealed class TestScriptRunnerTests : IDisposable
 {
     private readonly string _tempDir;
 
@@ -13,7 +13,11 @@ public class TestScriptRunnerTests : IDisposable
         Directory.CreateDirectory(_tempDir);
     }
 
-    public void Dispose() => Directory.Delete(_tempDir, recursive: true);
+    public void Dispose()
+    {
+        Directory.Delete(_tempDir, recursive: true);
+        GC.SuppressFinalize(this);
+    }
 
     // ── Exists ────────────────────────────────────────────────────────────────
 
@@ -130,7 +134,7 @@ public class TestScriptRunnerTests : IDisposable
         var runner = new TestScriptRunner(_tempDir);
 
         using var cts = new CancellationTokenSource();
-        cts.Cancel(); // pre-cancel
+        await cts.CancelAsync(); // pre-cancel
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunAsync(cts.Token));
     }

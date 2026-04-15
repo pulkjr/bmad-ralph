@@ -198,5 +198,5 @@ public class GitManager(string projectPath)
         return new ProcessResult(process.ExitCode, stdOut, stdErr);
     }
 
-    private record ProcessResult(int ExitCode, string StdOut, string StdErr);
+    private sealed record ProcessResult(int ExitCode, string StdOut, string StdErr);
 }

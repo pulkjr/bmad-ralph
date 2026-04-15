@@ -35,7 +35,7 @@ public class SprintReviewPhase(
             Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
         );
 
-        var personas = PartyModePersonas.Build(config, hasUxSpec);
+        var personas = PartyModePersonas.Build(hasUxSpec);
 
         var reviewPrompt = BuildReviewPrompt(sprint, epic, config, hasUxSpec);
 

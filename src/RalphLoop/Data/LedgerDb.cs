@@ -41,7 +41,7 @@ public sealed class LedgerDb : IAsyncDisposable, IDisposable
 
     private async Task ApplySchemaAsync()
     {
-        var sql = """
+        const string sql = """
             PRAGMA journal_mode=WAL;
 
             CREATE TABLE IF NOT EXISTS sprints (

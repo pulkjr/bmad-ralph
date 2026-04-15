@@ -4,7 +4,7 @@ using Xunit;
 
 namespace RalphLoop.Tests.Config;
 
-public class ConfigLoaderTests : IDisposable
+public sealed class ConfigLoaderTests : IDisposable
 {
     private readonly string _tempDir;
 
@@ -14,7 +14,11 @@ public class ConfigLoaderTests : IDisposable
         Directory.CreateDirectory(_tempDir);
     }
 
-    public void Dispose() => Directory.Delete(_tempDir, recursive: true);
+    public void Dispose()
+    {
+        Directory.Delete(_tempDir, recursive: true);
+        GC.SuppressFinalize(this);
+    }
 
     // ── Missing ralph-loop.json ───────────────────────────────────────────────
 
@@ -35,7 +39,7 @@ public class ConfigLoaderTests : IDisposable
     [Fact]
     public void Load_ParsesJsonValues_WhenConfigFilePresent()
     {
-        var json = """
+        const string json = """
             {
               "maxQaFailsBeforeSwarm": 5,
               "maxStoryRounds": 20,
@@ -58,7 +62,7 @@ public class ConfigLoaderTests : IDisposable
     [Fact]
     public void Load_ParsesModels_WhenConfigFilePresent()
     {
-        var json = """
+        const string json = """
             {
               "models": {
                 "default": "gpt-4",
@@ -79,7 +83,7 @@ public class ConfigLoaderTests : IDisposable
     [Fact]
     public void Load_ToleratesTrailingCommasAndComments()
     {
-        var json = """
+        const string json = """
             {
               // a comment
               "maxQaFailsBeforeSwarm": 7, /* trailing */

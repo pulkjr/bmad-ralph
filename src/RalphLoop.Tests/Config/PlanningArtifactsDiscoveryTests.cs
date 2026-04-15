@@ -3,7 +3,7 @@ using Xunit;
 
 namespace RalphLoop.Tests.Config;
 
-public class PlanningArtifactsDiscoveryTests : IDisposable
+public sealed class PlanningArtifactsDiscoveryTests : IDisposable
 {
     private readonly string _dir;
 
@@ -13,7 +13,11 @@ public class PlanningArtifactsDiscoveryTests : IDisposable
         Directory.CreateDirectory(_dir);
     }
 
-    public void Dispose() => Directory.Delete(_dir, recursive: true);
+    public void Dispose()
+    {
+        Directory.Delete(_dir, recursive: true);
+        GC.SuppressFinalize(this);
+    }
 
     // ── Directory missing ─────────────────────────────────────────────────────
 

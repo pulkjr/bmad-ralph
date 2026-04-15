@@ -45,7 +45,7 @@ public class EpicCompletionPhase(
             </changed-files>
             """;
 
-        var verdictInstruction = """
+        const string verdictInstruction = """
 
             At the END of your response, emit exactly one verdict line:
             VERDICT: PASS
@@ -74,7 +74,7 @@ public class EpicCompletionPhase(
             ui.ShowWarning(
                 $"{failures.Count} review(s) failed (attempt {swarmAttempt}/{MaxSwarmAttempts}). Launching SWARM..."
             );
-            var personas = PartyModePersonas.Build(config, hasUxSpec);
+            var personas = PartyModePersonas.Build(hasUxSpec);
 
             var swarmPrompt = $"""
                 EPIC COMPLETION SWARM for '{epic.Name}' (attempt {swarmAttempt}).
@@ -104,20 +104,18 @@ public class EpicCompletionPhase(
             await partyMode.RunAsync(personas, swarmPrompt, $"Epic Swarm — {epic.Name}", ct);
         } while (swarmAttempt < MaxSwarmAttempts);
 
-        if (failures.Count > 0)
-        {
-            if (
-                !ui.Confirm(
-                    $"Reviews still failing after {MaxSwarmAttempts} swarm attempt(s). Force-proceed to consensus?",
-                    defaultValue: false
-                )
+        if (
+            failures.Count > 0
+            && !ui.Confirm(
+                $"Reviews still failing after {MaxSwarmAttempts} swarm attempt(s). Force-proceed to consensus?",
+                defaultValue: false
             )
-                throw new OperationCanceledException("Epic completion reviews not resolved.");
-        }
+        )
+            throw new OperationCanceledException("Epic completion reviews not resolved.");
 
         // Final party-mode consensus
         ui.ShowSection("Final Sprint Consensus");
-        var finalPersonas = PartyModePersonas.Build(config, hasUxSpec);
+        var finalPersonas = PartyModePersonas.Build(hasUxSpec);
 
         var finalPrompt = $"""
             FINAL CONSENSUS CHECK for epic '{epic.Name}'.
@@ -148,17 +146,14 @@ public class EpicCompletionPhase(
             ct
         );
 
-        var allApproved = AllApproved(consensusResult.Response);
-        if (!allApproved)
-        {
-            if (
-                !ui.Confirm(
-                    "Consensus was not unanimous. Force-close epic anyway?",
-                    defaultValue: false
-                )
+        if (
+            !AllApproved(consensusResult.Response)
+            && !ui.Confirm(
+                "Consensus was not unanimous. Force-close epic anyway?",
+                defaultValue: false
             )
-                throw new OperationCanceledException("Epic consensus not reached.");
-        }
+        )
+            throw new OperationCanceledException("Epic consensus not reached.");
 
         await epics.MarkCompleteAsync(epic.Id);
         ui.ShowSuccess($"Epic '{epic.Name}' marked as COMPLETE! 🎉");

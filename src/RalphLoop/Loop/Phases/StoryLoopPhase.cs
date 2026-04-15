@@ -140,7 +140,7 @@ public class StoryLoopPhase(
             }
 
             // Step 3: QA review
-            var qaResult = await RunQaAsync(epic, story, isUxStory, round, failureHistory, ct);
+            var qaResult = await RunQaAsync(story, isUxStory, round, failureHistory, ct);
             await storyRepo.AddTokensAsync(story.Id, qaResult.TokensUsed);
 
             var qaPassed = IsPositiveOutcome(qaResult.Response);
@@ -164,7 +164,7 @@ public class StoryLoopPhase(
                 if (failCount % config.MaxQaFailsBeforeSwarm == 0)
                 {
                     ui.ShowWarning($"QA failed {failCount} times — launching party-mode SWARM...");
-                    await RunSwarmAsync(epic, story, qaResult.Response, failCount, ct);
+                    await RunSwarmAsync(story, qaResult.Response, failCount, ct);
                 }
                 else
                 {
@@ -184,7 +184,7 @@ public class StoryLoopPhase(
             ui.ShowSuccess("QA passed!");
 
             // Step 4: test.sh
-            var testPassed = await RunTestScriptAsync(epic, story, isUxStory, failureHistory, ct);
+            var testPassed = await RunTestScriptAsync(story, isUxStory, ct);
             if (!testPassed)
                 continue;
 
@@ -193,7 +193,7 @@ public class StoryLoopPhase(
             {
                 try
                 {
-                    await CommitStoryAsync(epic, story, ct);
+                    await CommitStoryAsync(epic, story);
                     await storyRepo.MarkCompleteAsync(story.Id);
                     await tx.CommitAsync();
                 }
@@ -225,7 +225,6 @@ public class StoryLoopPhase(
     }
 
     private async Task<AgentResult> RunQaAsync(
-        Epic epic,
         Story story,
         bool isUxStory,
         int round,
@@ -233,7 +232,7 @@ public class StoryLoopPhase(
         CancellationToken ct
     )
     {
-        var prompt = BuildQaPrompt(epic, story, isUxStory, round, failureHistory);
+        var prompt = BuildQaPrompt(story, isUxStory, round, failureHistory);
         return await runner.RunAsync(
             factory.ForQa(AgentRunner.ApproveAll(), runner.UserInputHandler()),
             prompt,
@@ -261,7 +260,6 @@ public class StoryLoopPhase(
     }
 
     private async Task RunSwarmAsync(
-        Epic epic,
         Story story,
         string failureReport,
         int failCount,
@@ -272,7 +270,7 @@ public class StoryLoopPhase(
         var hasUx = File.Exists(
             Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
         );
-        var personas = PartyModePersonas.Build(config, hasUx);
+        var personas = PartyModePersonas.Build(hasUx);
 
         var prompt = $"""
             SWARM MODE — Story '{story.Name}' has failed QA {failCount} times.
@@ -308,13 +306,7 @@ public class StoryLoopPhase(
         );
     }
 
-    private async Task<bool> RunTestScriptAsync(
-        Epic epic,
-        Story story,
-        bool isUxStory,
-        IReadOnlyList<string> failureHistory,
-        CancellationToken ct
-    )
+    private async Task<bool> RunTestScriptAsync(Story story, bool isUxStory, CancellationToken ct)
     {
         if (!testRunner.Exists)
         {
@@ -344,9 +336,6 @@ public class StoryLoopPhase(
         // Test failed — pass output to developer, but NOT test.sh; then re-run test.sh immediately
         ui.ShowError("test.sh failed. Passing output to developer to fix the code.");
         await storyRepo.AddEventAsync(story.Id, StoryEventType.BuildFail, testResult.Output);
-
-        var buildFailure = $"Build/Test Failure:\n{testResult.Output}";
-        var allFailures = failureHistory.Append(buildFailure).ToList();
 
         var fixPrompt = $"""
             test.sh failed with exit code {testResult.ExitCode}. Fix the APPLICATION code to make it pass.
@@ -386,7 +375,7 @@ public class StoryLoopPhase(
         return false; // Full loop restart needed
     }
 
-    private async Task CommitStoryAsync(Epic epic, Story story, CancellationToken ct)
+    private async Task CommitStoryAsync(Epic epic, Story story)
     {
         if (!config.Git.AutoCommit)
             return;
@@ -401,7 +390,7 @@ public class StoryLoopPhase(
         ui.ShowSuccess($"Committed: {story.Name}");
     }
 
-    private string BuildDeveloperPrompt(
+    private static string BuildDeveloperPrompt(
         Epic epic,
         Story story,
         IReadOnlyList<string> failureHistory
@@ -434,7 +423,7 @@ public class StoryLoopPhase(
             """;
     }
 
-    private string BuildDeveloperFixPrompt(
+    private static string BuildDeveloperFixPrompt(
         Epic epic,
         Story story,
         string failureReport,
@@ -465,8 +454,7 @@ public class StoryLoopPhase(
             """;
     }
 
-    private string BuildQaPrompt(
-        Epic epic,
+    private static string BuildQaPrompt(
         Story story,
         bool isUxStory,
         int round,
@@ -506,15 +494,22 @@ public class StoryLoopPhase(
             """;
     }
 
-    private string GetAppCommand() =>
-        !string.IsNullOrWhiteSpace(config.AppCommand)
-            ? config.AppCommand
-            : "./"
-                + (
-                    Directory.GetFiles(config.ProjectPath, "*.csproj").Any() ? "run"
-                    : File.Exists(Path.Combine(config.ProjectPath, "package.json")) ? "start"
-                    : "app"
-                );
+    private string GetAppCommand()
+    {
+        if (!string.IsNullOrWhiteSpace(config.AppCommand))
+            return config.AppCommand;
+
+        var hasCsproj = Directory.GetFiles(config.ProjectPath, "*.csproj").Any();
+        var hasPackageJson = File.Exists(Path.Combine(config.ProjectPath, "package.json"));
+        string suffix;
+        if (hasCsproj)
+            suffix = "run";
+        else if (hasPackageJson)
+            suffix = "start";
+        else
+            suffix = "app";
+        return "./" + suffix;
+    }
 
     private static bool IsUxStory(Story story)
     {

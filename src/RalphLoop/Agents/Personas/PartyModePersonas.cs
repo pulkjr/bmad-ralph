@@ -1,5 +1,4 @@
 using GitHub.Copilot.SDK;
-using RalphLoop.Config;
 
 namespace RalphLoop.Agents.Personas;
 
@@ -9,7 +8,7 @@ namespace RalphLoop.Agents.Personas;
 /// </summary>
 public static class PartyModePersonas
 {
-    public static List<CustomAgentConfig> Build(RalphLoopConfig config, bool includeUxDesigner)
+    public static List<CustomAgentConfig> Build(bool includeUxDesigner)
     {
         var personas = new List<CustomAgentConfig>
         {

@@ -98,6 +98,16 @@ dotnet_naming_symbols.async_methods.required_modifiers = async
 dotnet_naming_style.end_in_async.capitalization = pascal_case
 dotnet_naming_style.end_in_async.required_suffix = Async
 
+# ── Files that are DI service classes — instance methods are by design ────────
+# ConsoleUI and TestScriptRunner are registered as singleton services and injected via
+# constructor DI. Their methods don't access `this`, but making them static would require
+# removing them from the DI container and all constructors — a large refactor for no gain.
+[src/RalphLoop/UI/ConsoleUI.cs]
+dotnet_diagnostic.S2325.severity = none         # Instance methods on DI service
+
+[src/RalphLoop/Build/TestScriptRunner.cs]
+dotnet_diagnostic.S2325.severity = none         # Instance methods on DI service
+
 # ── Test projects — relax rules that fire falsely on xUnit test methods ──────
 [src/RalphLoop.Tests/**/*.cs]
 dotnet_diagnostic.IDE0060.severity = none       # Unused parameter (data-driven test params)

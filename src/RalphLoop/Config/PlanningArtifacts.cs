@@ -102,7 +102,7 @@ public record PlanningArtifacts(
             ?? ProbeDir(artifactsPath, "ux-design-specification-distillate");
 
         // ── All markdown files (for agent reference context) ──────────────────
-        var allMd = Directory.GetFiles(artifactsPath, "*.md").OrderBy(f => f).ToList().AsReadOnly();
+        var allMd = Directory.GetFiles(artifactsPath, "*.md").Order().ToArray();
 
         return new PlanningArtifacts(
             epicsMd,

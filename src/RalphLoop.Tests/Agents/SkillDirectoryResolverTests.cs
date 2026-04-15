@@ -4,7 +4,7 @@ using Xunit;
 
 namespace RalphLoop.Tests.Agents;
 
-public class SkillDirectoryResolverTests : IDisposable
+public sealed class SkillDirectoryResolverTests : IDisposable
 {
     private readonly string _tempDir;
 
@@ -14,7 +14,11 @@ public class SkillDirectoryResolverTests : IDisposable
         Directory.CreateDirectory(_tempDir);
     }
 
-    public void Dispose() => Directory.Delete(_tempDir, recursive: true);
+    public void Dispose()
+    {
+        Directory.Delete(_tempDir, recursive: true);
+        GC.SuppressFinalize(this);
+    }
 
     [Fact]
     public void Resolve_ReturnsEmpty_WhenNeitherDirExists()

@@ -114,7 +114,6 @@ public class ConsoleUI
 
     public void ShowBuildOutput(string output, bool passed)
     {
-        var color = passed ? "green" : "red";
         var header = passed ? "✓ Build/Test Passed" : "✗ Build/Test Failed";
         AnsiConsole.Write(
             new Panel(new Text(output))

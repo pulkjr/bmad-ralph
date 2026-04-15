@@ -12,7 +12,7 @@ namespace RalphLoop.Tests.Integration;
 /// system copies referenced project outputs alongside the test runner, so
 /// <c>typeof(LedgerDb).Assembly.Location</c> resolves to the correct <c>RalphLoop.dll</c>.
 /// </summary>
-public class ProgramFunctionalTests : IDisposable
+public sealed class ProgramFunctionalTests : IDisposable
 {
     private readonly string _tempDir;
 
@@ -32,7 +32,11 @@ public class ProgramFunctionalTests : IDisposable
         Directory.CreateDirectory(_tempDir);
     }
 
-    public void Dispose() => Directory.Delete(_tempDir, recursive: true);
+    public void Dispose()
+    {
+        Directory.Delete(_tempDir, recursive: true);
+        GC.SuppressFinalize(this);
+    }
 
     // ── --version ─────────────────────────────────────────────────────────────
 
