@@ -120,6 +120,7 @@ services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
 // Infrastructure
 services.AddSingleton(config);
 services.AddSingleton<ConsoleUI>();
+services.AddSingleton<RunLogger>();
 services.AddSingleton(_ => new LedgerDb(config.LedgerDbPath));
 services.AddSingleton<SprintRepository>();
 services.AddSingleton<EpicRepository>();
@@ -227,6 +228,7 @@ catch (OperationCanceledException)
 catch (Exception ex)
 {
     ui.ShowError($"Fatal error: {ex.Message}");
+    sp.GetRequiredService<RunLogger>().LogError("fatal", ex.ToString());
     AnsiConsole.WriteException(ex, ExceptionFormats.ShortenEverything);
     return 1;
 }

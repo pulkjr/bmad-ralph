@@ -11,6 +11,7 @@ public class RalphLoopConfig
     public int MaxQaFailsBeforeSwarm { get; set; } = 3;
     public int MaxStoryRounds { get; set; } = 10;
     public bool EnableAgentTui { get; set; } = true;
+    public bool DebugLog { get; set; } = false;
 
     /// <summary>
     /// Overrides the default app run command heuristic.

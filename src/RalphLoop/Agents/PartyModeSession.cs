@@ -8,7 +8,12 @@ namespace RalphLoop.Agents;
 /// Orchestrates a BMAD party-mode session with multiple agent personas.
 /// Returns the consensus outcome from the session.
 /// </summary>
-public class PartyModeSession(CopilotClient client, SessionFactory factory, ConsoleUI ui)
+public class PartyModeSession(
+    CopilotClient client,
+    SessionFactory factory,
+    ConsoleUI ui,
+    RunLogger runLogger
+)
 {
     /// <summary>
     /// Run a party-mode session with the given personas and prompt.
@@ -38,7 +43,7 @@ public class PartyModeSession(CopilotClient client, SessionFactory factory, Cons
 
         ui.ShowPartyRoster(personas, config.Model);
 
-        var runner = new AgentRunner(client, ui);
+        var runner = new AgentRunner(client, ui, runLogger);
         return await runner.RunAsync(config, prompt, sessionLabel, ct);
     }
 }

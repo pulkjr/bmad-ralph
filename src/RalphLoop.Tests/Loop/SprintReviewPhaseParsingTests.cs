@@ -213,7 +213,73 @@ public class SprintReviewPhaseParsingTests
         Assert.Equal(1, result.YesCount);
     }
 
-    // ── Real-world sample from confirmed failure ──────────────────────────────
+    // ── Markdown table vote format (new format observed in production) ────────
+
+    [Fact]
+    public void ParseConfidenceVoteResult_MarkdownTableVotes_CorrectCounts()
+    {
+        // Exact output format that caused the production regression:
+        // - Votes in a Markdown table (no VOTE: prefix)
+        // - CONFIDENCE: line prefixed with "## 🏁"
+        var response = """
+            ## 📊 VOTE TALLY
+            | Agent | Vote |
+            |-------|------|
+            | Winston (Architect) | NO (MINOR) |
+            | John (PM) | NO (MINOR) |
+            | Quinn (QA) | NO (MINOR) |
+            | Amelia (Dev) | NO (MINOR) |
+            | Skeptic | NO (MINOR) |
+            | Edge Case Hunter | NO (MINOR) |
+
+            **Yes votes: 0 · No (MINOR) votes: 6 · No (MAJOR) votes: 0**
+
+            ## 🏁 CONFIDENCE: FAILED (MINOR)
+            """;
+
+        var result = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        Assert.Equal(0, result.YesCount);
+        Assert.Equal(6, result.NoMinorCount);
+        Assert.Empty(result.MajorIssues);
+        Assert.Equal(SprintReviewPhase.VoteOutcome.FailedMinorOnly, result.Outcome);
+    }
+
+    [Fact]
+    public void ParseConfidenceVoteResult_MarkdownTableMixedVotes_CorrectCounts()
+    {
+        var response = """
+            | Agent | Vote |
+            |-------|------|
+            | Winston | YES |
+            | John | NO (MINOR) |
+            | Amelia | NO (MAJOR) |
+
+            ## 🏁 CONFIDENCE: FAILED (MAJOR) — scope ambiguity
+            """;
+
+        var result = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        Assert.Equal(1, result.YesCount);
+        Assert.Equal(1, result.NoMinorCount);
+        Assert.Equal(1, result.MajorIssues.Count);
+        Assert.Equal(SprintReviewPhase.VoteOutcome.FailedMajor, result.Outcome);
+    }
+
+    [Fact]
+    public void ParseConfidenceVoteResult_MarkdownHeaderConfidenceLine_OutcomeDetected()
+    {
+        // Verify that various markdown header prefixes before CONFIDENCE: are handled.
+        var response = """
+            Team discussed the stories and agreed.
+
+            ### ✅ CONFIDENCE: PASSED (4 yes / 0 no)
+            """;
+
+        var result = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        Assert.Equal(SprintReviewPhase.VoteOutcome.Passed, result.Outcome);
+    }
 
     [Fact]
     public void ParseConfidenceVoteResult_ConfirmedRealWorldSample_ParsesAllSixNoMinorVotes()

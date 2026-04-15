@@ -10,7 +10,7 @@ public record AgentResult(string Response, long TokensUsed);
 /// Tracks token usage from AssistantMessageEvents and accumulates tool token costs.
 /// Retries transient SessionErrorEvents up to <see cref="MaxRetries"/> times.
 /// </summary>
-public class AgentRunner(CopilotClient client, ConsoleUI ui)
+public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger)
 {
     private const int MaxRetries = 3;
     private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(5);
@@ -74,6 +74,8 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
         CancellationToken ct
     )
     {
+        runLogger.LogAgentInput(agentLabel, config.Model, prompt);
+
         await using var session = await client.CreateSessionAsync(config);
 
         var responseBuilder = new System.Text.StringBuilder();
@@ -116,7 +118,9 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui)
         cts.CancelAfter(TimeSpan.FromMinutes(30));
         await done.Task.WaitAsync(cts.Token);
 
-        return new AgentResult(responseBuilder.ToString(), tokensUsed);
+        var response = responseBuilder.ToString();
+        runLogger.LogAgentOutput(agentLabel, tokensUsed, response);
+        return new AgentResult(response, tokensUsed);
     }
 
     /// <summary>

@@ -20,7 +20,8 @@ public class SprintReviewPhase(
     SessionFactory factory,
     EpicRepository epics,
     ConsoleUI ui,
-    RalphLoopConfig config
+    RalphLoopConfig config,
+    RunLogger runLogger
 )
 {
     public async Task<SprintReviewResult> RunAsync(
@@ -53,6 +54,13 @@ public class SprintReviewPhase(
         var reviewNotes = new System.Text.StringBuilder(partyResult.Response);
 
         var voteResult = ParseConfidenceVoteResult(partyResult.Response);
+        runLogger.LogVoteResult(
+            voteResult.YesCount,
+            voteResult.NoMinorCount,
+            voteResult.MajorIssues.Count,
+            voteResult.Outcome.ToString(),
+            partyResult.Response
+        );
         ui.ShowConfidenceVoteTable(
             voteResult.YesCount,
             voteResult.NoMinorCount,
@@ -479,14 +487,25 @@ public class SprintReviewPhase(
             | System.Text.RegularExpressions.RegexOptions.Multiline
     );
 
+    // Secondary parser for agents that produce a Markdown table instead of VOTE: lines.
+    // Matches: | <agent name> | YES | or | <agent name> | NO (MINOR) | etc.
+    private static readonly System.Text.RegularExpressions.Regex TableVoteRegex = new(
+        @"^\|[^|]*\|\s*(YES|NO\s*\(MINOR\)|NO\s*\(MAJOR\))\s*\|",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.Multiline
+    );
+
     private static readonly System.Text.RegularExpressions.Regex TiebreakerRegex = new(
         @"^>?\s*TIEBREAKER:\s*(YES|NO\s*\(MINOR\)|NO\s*\(MAJOR\))\s*[—\-–]+\s*(.+)$",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase
             | System.Text.RegularExpressions.RegexOptions.Multiline
     );
 
+    // Allow optional non-letter prefix chars before CONFIDENCE: so that markdown
+    // headers like "## 🏁 CONFIDENCE: FAILED (MINOR)" are matched in addition to
+    // the plain "CONFIDENCE: PASSED" format.
     private static readonly System.Text.RegularExpressions.Regex ConfidenceLineRegex = new(
-        @"^CONFIDENCE:\s*(PASSED|TIED|FAILED\s*\(MINOR\)|FAILED\s*\(MAJOR\))",
+        @"^[^a-zA-Z]*CONFIDENCE:\s*(PASSED|TIED|FAILED\s*\(MINOR\)|FAILED\s*\(MAJOR\))",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase
             | System.Text.RegularExpressions.RegexOptions.Multiline
     );
@@ -506,6 +525,21 @@ public class SprintReviewPhase(
             var isYes = typeToken.StartsWith("YES", StringComparison.OrdinalIgnoreCase);
             var isMajor = typeToken.Contains("MAJOR", StringComparison.OrdinalIgnoreCase) && !isYes;
             votes.Add(new PersonaVote(m.Value, isYes, isMajor, detail));
+        }
+
+        // Fallback: if no VOTE: lines were found, try parsing a Markdown table.
+        // Agents sometimes produce "| Agent | NO (MINOR) |" rows instead of "VOTE: NO (MINOR) — reason".
+        // Detail is empty in this case; the minor-issue resolution path will fall back to the full discussion.
+        if (votes.Count == 0)
+        {
+            foreach (System.Text.RegularExpressions.Match m in TableVoteRegex.Matches(response))
+            {
+                var typeToken = m.Groups[1].Value.Trim();
+                var isYes = typeToken.StartsWith("YES", StringComparison.OrdinalIgnoreCase);
+                var isMajor =
+                    typeToken.Contains("MAJOR", StringComparison.OrdinalIgnoreCase) && !isYes;
+                votes.Add(new PersonaVote(m.Value, isYes, isMajor, string.Empty));
+            }
         }
 
         int yesCount = votes.Count(v => v.IsYes);

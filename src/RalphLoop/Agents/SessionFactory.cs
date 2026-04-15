@@ -235,7 +235,16 @@ public class SessionFactory(RalphLoopConfig config)
             cfg.OnUserInputRequest = onUserInput;
 
         if (agentSkillName is not null)
+        {
+            // SessionConfig.Agent must reference a CustomAgentConfig.Name in CustomAgents —
+            // it is NOT a skill directory name. Without this entry the SDK throws
+            // "Custom agent '<name> not found".
+            // NOTE: CustomAgentConfig.Skills (for eager skill injection) is available in
+            // SDK 0.3+. Until the SDK is upgraded, skill content is loaded from
+            // SkillDirectories at the session level and available to the agent.
+            cfg.CustomAgents = [new CustomAgentConfig { Name = agentSkillName }];
             cfg.Agent = agentSkillName;
+        }
 
         return cfg;
     }
