@@ -31,6 +31,7 @@ public static class SkillDirectoryResolver
 public class SessionFactory(RalphLoopConfig config)
 {
     private readonly List<string> _skillDirs = SkillDirectoryResolver.Resolve(config);
+    private readonly BmadSkillContentLoader _skillContentLoader = new(config);
 
     /// <summary>
     /// The BMAD agent skills that must be installed for the loop to function.
@@ -204,6 +205,18 @@ public class SessionFactory(RalphLoopConfig config)
         return cfg;
     }
 
+    public List<CustomAgentConfig> BuildPartyPersonas(bool includeUxDesigner)
+    {
+        var skillByPersona = new Dictionary<string, string>();
+        AddPartyPersonaSkill(skillByPersona, "product-manager", "bmad-agent-pm");
+        AddPartyPersonaSkill(skillByPersona, "developer", "bmad-agent-dev");
+        AddPartyPersonaSkill(skillByPersona, "architect", "bmad-agent-architect");
+        AddPartyPersonaSkill(skillByPersona, "tech-writer", "bmad-agent-tech-writer");
+        AddPartyPersonaSkill(skillByPersona, "ux-designer", "bmad-agent-ux-designer");
+
+        return Personas.PartyModePersonas.Build(includeUxDesigner, skillByPersona);
+    }
+
     private SessionConfig Build(
         string model,
         string? agentSkillName,
@@ -212,6 +225,12 @@ public class SessionFactory(RalphLoopConfig config)
         UserInputHandler? onUserInput
     )
     {
+        var skillContent = agentSkillName is not null
+            ? _skillContentLoader.LoadForPrompt(agentSkillName)
+            : string.Empty;
+
+        var fullSystemMessage = BuildSystemMessage(skillContent, systemMessage);
+
         var cfg = new SessionConfig
         {
             Model = model,
@@ -221,31 +240,43 @@ public class SessionFactory(RalphLoopConfig config)
         };
 
         // Only set a system message if there's deployment-specific content to add.
-        // Agents with BMAD skills rely on their SKILL.md for identity; we only append additive context.
-        if (!string.IsNullOrWhiteSpace(systemMessage))
+        // BMAD agents get SKILL.md content injected directly.
+        if (!string.IsNullOrWhiteSpace(fullSystemMessage))
         {
             cfg.SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Append,
-                Content = systemMessage,
+                Content = fullSystemMessage,
             };
         }
 
         if (onUserInput is not null)
             cfg.OnUserInputRequest = onUserInput;
 
-        if (agentSkillName is not null)
-        {
-            // SessionConfig.Agent must reference a CustomAgentConfig.Name in CustomAgents —
-            // it is NOT a skill directory name. Without this entry the SDK throws
-            // "Custom agent '<name> not found".
-            // NOTE: CustomAgentConfig.Skills (for eager skill injection) is available in
-            // SDK 0.3+. Until the SDK is upgraded, skill content is loaded from
-            // SkillDirectories at the session level and available to the agent.
-            cfg.CustomAgents = [new CustomAgentConfig { Name = agentSkillName }];
-            cfg.Agent = agentSkillName;
-        }
-
         return cfg;
+    }
+
+    private void AddPartyPersonaSkill(
+        IDictionary<string, string> target,
+        string personaName,
+        string skillId
+    )
+    {
+        if (_skillContentLoader.TryLoadForPrompt(skillId, out var skillContent))
+            target[personaName] = skillContent;
+    }
+
+    private static string BuildSystemMessage(string skillContent, string deploymentSpecific)
+    {
+        var hasSkill = !string.IsNullOrWhiteSpace(skillContent);
+        var hasDeployment = !string.IsNullOrWhiteSpace(deploymentSpecific);
+
+        if (hasSkill && hasDeployment)
+            return $"{skillContent}\n\nDeployment-specific instructions:\n{deploymentSpecific}";
+
+        if (hasSkill)
+            return skillContent;
+
+        return deploymentSpecific;
     }
 }

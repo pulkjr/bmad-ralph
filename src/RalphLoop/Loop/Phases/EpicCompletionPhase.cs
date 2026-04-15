@@ -1,6 +1,5 @@
 using GitHub.Copilot.SDK;
 using RalphLoop.Agents;
-using RalphLoop.Agents.Personas;
 using RalphLoop.Config;
 using RalphLoop.Data;
 using RalphLoop.Data.Models;
@@ -74,7 +73,7 @@ public class EpicCompletionPhase(
             ui.ShowWarning(
                 $"{failures.Count} review(s) failed (attempt {swarmAttempt}/{MaxSwarmAttempts}). Launching SWARM..."
             );
-            var personas = PartyModePersonas.Build(hasUxSpec);
+            var personas = factory.BuildPartyPersonas(hasUxSpec);
 
             var swarmPrompt = $"""
                 EPIC COMPLETION SWARM for '{epic.Name}' (attempt {swarmAttempt}).
@@ -115,7 +114,7 @@ public class EpicCompletionPhase(
 
         // Final party-mode consensus
         ui.ShowSection("Final Sprint Consensus");
-        var finalPersonas = PartyModePersonas.Build(hasUxSpec);
+        var finalPersonas = factory.BuildPartyPersonas(hasUxSpec);
 
         var finalPrompt = $"""
             FINAL CONSENSUS CHECK for epic '{epic.Name}'.

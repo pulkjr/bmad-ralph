@@ -1,6 +1,5 @@
 using GitHub.Copilot.SDK;
 using RalphLoop.Agents;
-using RalphLoop.Agents.Personas;
 using RalphLoop.Build;
 using RalphLoop.Config;
 using RalphLoop.Data;
@@ -277,7 +276,7 @@ public class StoryLoopPhase(
         var hasUx = File.Exists(
             Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
         );
-        var personas = PartyModePersonas.Build(hasUx);
+        var personas = factory.BuildPartyPersonas(hasUx);
 
         var prompt = $"""
             SWARM MODE — Story '{story.Name}' has failed QA {failCount} times.

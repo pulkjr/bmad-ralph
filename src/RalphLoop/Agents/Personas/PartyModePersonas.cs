@@ -8,8 +8,19 @@ namespace RalphLoop.Agents.Personas;
 /// </summary>
 public static class PartyModePersonas
 {
-    public static List<CustomAgentConfig> Build(bool includeUxDesigner)
+    public static List<CustomAgentConfig> Build(
+        bool includeUxDesigner,
+        IReadOnlyDictionary<string, string>? skillByPersona = null
+    )
     {
+        string ApplySkill(string personaName, string basePrompt)
+        {
+            if (skillByPersona is null || !skillByPersona.TryGetValue(personaName, out var skill))
+                return basePrompt;
+
+            return $"{skill}\n\nAdditional role focus:\n{basePrompt}";
+        }
+
         var personas = new List<CustomAgentConfig>
         {
             new()
@@ -18,10 +29,12 @@ public static class PartyModePersonas
                 DisplayName = "John (Product Manager)",
                 Description =
                     "Owns the PRD. Validates story alignment with requirements. Flags scope drift.",
-                Prompt =
+                Prompt = ApplySkill(
+                    "product-manager",
                     "You are John, the Product Manager. You own prd.md. "
-                    + "Surface any stories that violate, contradict, or drift from the PRD. "
-                    + "Ensure acceptance criteria are measurable and testable.",
+                        + "Surface any stories that violate, contradict, or drift from the PRD. "
+                        + "Ensure acceptance criteria are measurable and testable."
+                ),
             },
             new()
             {
@@ -29,10 +42,12 @@ public static class PartyModePersonas
                 DisplayName = "Amelia (Developer)",
                 Description =
                     "Implements stories. Identifies technical ambiguities and implementation risks.",
-                Prompt =
+                Prompt = ApplySkill(
+                    "developer",
                     "You are Amelia, the senior developer. "
-                    + "Identify ambiguities in stories that would block implementation. "
-                    + "Ask about unclear technical requirements.",
+                        + "Identify ambiguities in stories that would block implementation. "
+                        + "Ask about unclear technical requirements."
+                ),
             },
             new()
             {
@@ -60,20 +75,24 @@ public static class PartyModePersonas
                 DisplayName = "Winston (Architect)",
                 Description =
                     "Answers architectural questions and validates alignment with architecture.md.",
-                Prompt =
+                Prompt = ApplySkill(
+                    "architect",
                     "You are Winston, the Software Architect. "
-                    + "Validate that stories align with architecture.md. "
-                    + "Answer technical questions from the team. Identify architectural risks.",
+                        + "Validate that stories align with architecture.md. "
+                        + "Answer technical questions from the team. Identify architectural risks."
+                ),
             },
             new()
             {
                 Name = "tech-writer",
                 DisplayName = "Paige (Technical Writer)",
                 Description = "Reviews stories for documentation requirements.",
-                Prompt =
+                Prompt = ApplySkill(
+                    "tech-writer",
                     "You are Paige, the Technical Writer. "
-                    + "Identify what documentation each story requires: API docs, user guides, "
-                    + "change logs, or inline code comments.",
+                        + "Identify what documentation each story requires: API docs, user guides, "
+                        + "change logs, or inline code comments."
+                ),
             },
             new()
             {
@@ -114,10 +133,12 @@ public static class PartyModePersonas
                     Name = "ux-designer",
                     DisplayName = "Sally (UX Designer)",
                     Description = "Validates UX stories against ux-design-specification.md.",
-                    Prompt =
+                    Prompt = ApplySkill(
+                        "ux-designer",
                         "You are Sally, the UX Designer. "
-                        + "Validate that UX stories align with ux-design-specification.md. "
-                        + "Flag any UI behaviors, flows, or components that contradict the spec.",
+                            + "Validate that UX stories align with ux-design-specification.md. "
+                            + "Flag any UI behaviors, flows, or components that contradict the spec."
+                    ),
                 }
             );
         }

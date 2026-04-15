@@ -166,6 +166,7 @@ available 1x (non-opus) alternative and warns you at startup.
 | `ledgerDbPath`             | `<projectPath>/ledger.db` | SQLite database tracking sprints, epics, stories                  |
 | `skillDirectories.shared`  | `~/.bmad/skills`          | Shared BMAD agent skills                                          |
 | `skillDirectories.project` | `.bmad-core/skills`       | Project-local agent skills                                        |
+| `skillDirectories.copilotSkills` | `.github/skills` | Copilot-local BMAD skills directory (`<skill-id>/SKILL.md`)       |
 | `models.default`           | `gpt-5`                   | Fallback model for Scrum Master and any unspecified agents        |
 | `models.developer`         | `gpt-5.3-codex`           | Model for the Developer agent (Amelia)                            |
 | `models.architect`         | `claude-sonnet-4.6`       | Model for the Architect agent (Winston)                           |
@@ -187,6 +188,10 @@ available 1x (non-opus) alternative and warns you at startup.
 > models your Copilot subscription includes. Any configured model that is unavailable is
 > silently replaced with the best available 1x (non-opus) alternative. The QA agent is
 > always assigned a different model than the Developer agent.
+
+> **BMAD skill loading strategy:** On SDK `0.2.2`, Ralph Loop reads BMAD `SKILL.md` files
+> from configured skill directories and injects their persona/workflow instructions directly
+> into agent prompts. Relative paths inside skill content are normalized to absolute paths.
 
 The planning artifacts path is auto-resolved from `_bmad/bmm/config.yaml`
 (`planning_artifacts` key). If that file is absent, `_bmad-output/` is used.

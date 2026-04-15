@@ -1,6 +1,5 @@
 using GitHub.Copilot.SDK;
 using RalphLoop.Agents;
-using RalphLoop.Agents.Personas;
 using RalphLoop.Config;
 using RalphLoop.Data;
 using RalphLoop.Data.Models;
@@ -36,7 +35,7 @@ public class SprintReviewPhase(
             Path.Combine(config.PlanningArtifactsPath, "ux-design-specification.md")
         );
 
-        var personas = PartyModePersonas.Build(hasUxSpec);
+        var personas = factory.BuildPartyPersonas(hasUxSpec);
 
         var reviewPrompt = BuildReviewPrompt(sprint, epic, config, hasUxSpec);
 
