@@ -9,9 +9,9 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>ralph-loop</ToolCommandName>
 
-    <!-- Package identity — Version is overridden by CI via /p:Version -->
+    <!-- Package identity — version is derived from git tags at build time by MinVer -->
     <PackageId>RalphLoop</PackageId>
-    <Version>1.0.0</Version>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
     <Description>BMAD agentic development loop powered by GitHub Copilot SDK</Description>
     <Authors>ralph-loop contributors</Authors>
     <PackageTags>bmad;ai;copilot;agile;devloop;dotnet-tool</PackageTags>
