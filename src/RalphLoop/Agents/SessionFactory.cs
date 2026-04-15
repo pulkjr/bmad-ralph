@@ -58,9 +58,10 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.Qa,
-            "bmad-qa",
-            // BMAD skill defines QA identity. Add deployment-specific UX testing instruction.
-            "For UX stories, use agent-tui to test the TUI: run the app, take screenshots, "
+            null,
+            // No BMAD QA agent skill exists. Full identity defined here.
+            "You are the QA Engineer. Verify that implementation meets story acceptance criteria. "
+                + "For UX stories, use agent-tui to test the TUI: run the app, take screenshots, "
                 + "and navigate through user flows. Return a VERDICT: PASS or VERDICT: FAIL verdict."
                 + AntiInjectionNote,
             onPermission,
@@ -73,7 +74,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.Architect,
-            "bmad-architect",
+            "bmad-agent-architect",
             // BMAD skill defines Winston's identity. Add party-mode clarification context.
             "In party-mode, answer technical questions and resolve architectural ambiguities."
                 + AntiInjectionNote,
@@ -117,7 +118,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.TechWriter,
-            "bmad-tech-writer",
+            "bmad-agent-tech-writer",
             // BMAD skill defines Paige's identity. No additional loop-specific constraints needed.
             string.Empty,
             onPermission,
@@ -130,7 +131,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.UxDesigner,
-            "bmad-ux-designer",
+            "bmad-agent-ux-designer",
             // BMAD skill defines Sally's identity. Add agent-tui deployment-specific instruction.
             "Use agent-tui to verify screen states and flows against ux-design-specification.md.",
             onPermission,
