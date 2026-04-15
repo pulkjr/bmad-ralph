@@ -184,6 +184,51 @@ public class ConsoleUI
         AnsiConsole.WriteLine();
     }
 
+    public void ShowConfidenceVoteTable(
+        int yesCount,
+        int noMinorCount,
+        IReadOnlyList<string> majorIssues,
+        bool tiebreakerUsed,
+        bool tiebreakerYes
+    )
+    {
+        AnsiConsole.WriteLine();
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderStyle(new Style(Color.Yellow))
+            .Title("[bold yellow]🗳  Confidence Vote Result[/]")
+            .AddColumn(new TableColumn("[bold]Category[/]"))
+            .AddColumn(new TableColumn("[bold]Count / Detail[/]"));
+
+        table.AddRow("[green]YES votes[/]", yesCount.ToString());
+        table.AddRow(
+            "[yellow]NO (minor) votes[/]",
+            noMinorCount > 0 ? $"[yellow]{noMinorCount}[/]" : "0"
+        );
+        table.AddRow(
+            "[red]NO (major) votes[/]",
+            majorIssues.Count > 0 ? $"[red]{majorIssues.Count}[/]" : "0"
+        );
+
+        if (tiebreakerUsed)
+        {
+            var tbColor = tiebreakerYes ? "green" : "red";
+            var tbText = tiebreakerYes ? "YES (broke tie)" : "NO (broke tie)";
+            table.AddRow("[cyan]Architect tiebreaker[/]", $"[{tbColor}]{tbText}[/]");
+        }
+
+        if (majorIssues.Count > 0)
+        {
+            for (var i = 0; i < majorIssues.Count; i++)
+            {
+                table.AddRow($"[red]  Major issue {i + 1}[/]", Markup.Escape(majorIssues[i]));
+            }
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+    }
+
     public void ShowModelSummary(ModelsConfig models)
     {
         AnsiConsole.WriteLine();

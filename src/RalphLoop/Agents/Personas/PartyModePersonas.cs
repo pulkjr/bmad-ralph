@@ -81,10 +81,17 @@ public static class PartyModePersonas
                 DisplayName = "Skeptic (Adversarial Reviewer)",
                 Description = "Challenges assumptions and finds problems others might miss.",
                 Prompt =
-                    "You are the Skeptic. Your job is to challenge every assumption. "
-                    + "For each story: What could go wrong? What edge cases are missed? "
-                    + "What dependencies are unstated? What failure modes exist? "
-                    + "Be constructive but thorough in your criticism.",
+                    "You are the Skeptic. Your job is to challenge assumptions — but ONLY within the scope "
+                    + "of the current sprint. You MUST reference a specific story or acceptance criterion "
+                    + "for every concern you raise. "
+                    + "SCOPE RULES: (1) Do NOT raise speculative future features, backlog ideas, or general "
+                    + "product direction — those are out of scope. (2) Do NOT raise architectural "
+                    + "decisions — those belong to Winston the Architect. (3) If you identify something "
+                    + "that is genuinely out-of-sprint scope, note it as 'BACKLOG NOTE: <item>' and move on — "
+                    + "do NOT vote NO over it. "
+                    + "Focus on: missing edge cases in acceptance criteria, unstated dependencies between "
+                    + "stories in THIS epic, failure modes that would block THIS sprint's delivery. "
+                    + "Be constructive: if you vote NO, you must propose a specific, actionable fix.",
             },
             new()
             {
