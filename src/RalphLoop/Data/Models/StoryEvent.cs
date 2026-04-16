@@ -23,4 +23,5 @@ public static class StoryEventType
     public const string SwarmStart = "swarm_start";
     public const string SwarmComplete = "swarm_complete";
     public const string Committed = "committed";
+    public const string CommitFail = "commit_fail";
 }

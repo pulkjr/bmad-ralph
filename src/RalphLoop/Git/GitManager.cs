@@ -38,13 +38,13 @@ public class GitManager(string projectPath)
         }
     }
 
-    public async Task CommitStoryAsync(string storyName, string epicName, int round)
+    public async Task<CommitResult> CommitStoryAsync(string storyName, string epicName, int round)
     {
         var message = FormatCommitMessage(storyName, epicName, round);
 
         var addResult = await RunAsync("git", ["add", "-A"], projectPath);
         if (addResult.ExitCode != 0)
-            throw new InvalidOperationException($"git add failed: {addResult.StdErr}");
+            return new CommitResult(false, $"git add failed: {addResult.StdErr}");
 
         // Commit message is passed via stdin (-F -), not as a shell argument — safe.
         var commitResult = await RunWithStdinAsync(
@@ -54,8 +54,13 @@ public class GitManager(string projectPath)
             message
         );
         if (commitResult.ExitCode != 0)
-            throw new InvalidOperationException($"git commit failed: {commitResult.StdErr}");
+            return new CommitResult(false, commitResult.StdErr);
+
+        return new CommitResult(true, commitResult.StdOut);
     }
+
+    /// <summary>Result of a git commit attempt.</summary>
+    public sealed record CommitResult(bool Success, string Output);
 
     public async Task MergeEpicToMainAsync(string branchName)
     {

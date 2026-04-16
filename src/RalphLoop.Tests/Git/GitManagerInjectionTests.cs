@@ -107,7 +107,13 @@ public sealed class GitManagerInjectionTests : IDisposable
 
         // Story/epic names end up in the commit *message* passed via stdin, not as shell args.
         // This test confirms that even a malicious story name cannot escape stdin to the shell.
-        await sut.CommitStoryAsync("story; touch INJECTED.txt", "epic && touch INJECTED.txt", 1);
+        // CommitStoryAsync returns a result rather than throwing; we ignore the result here
+        // since the test only cares that the sentinel was not created.
+        _ = await sut.CommitStoryAsync(
+            "story; touch INJECTED.txt",
+            "epic && touch INJECTED.txt",
+            1
+        );
 
         Assert.False(
             File.Exists(_sentinelPath),

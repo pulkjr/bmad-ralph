@@ -235,14 +235,19 @@ public class StoryLoopPhase(
                 continue;
             }
 
-            // Step 5: Commit and mark complete — wrapped in a transaction to ensure atomicity (M12)
+            // Step 5: Commit and mark complete
             if (currentStep is StoryResumeStep.Commit)
             {
+                var committed = await TryCommitWithFixAsync(epic, story, ct);
+                if (!committed)
+                {
+                    currentStep = StoryResumeStep.Developer;
+                    continue;
+                }
                 await using (var tx = await db.BeginTransactionAsync())
                 {
                     try
                     {
-                        await CommitStoryAsync(epic, story);
                         await storyRepo.MarkCompleteAsync(story.Id);
                         await tx.CommitAsync();
                     }
@@ -429,20 +434,71 @@ public class StoryLoopPhase(
         return false; // Full loop restart needed
     }
 
-    private async Task CommitStoryAsync(Epic epic, Story story)
+    private async Task<bool> TryCommitWithFixAsync(Epic epic, Story story, CancellationToken ct)
     {
         if (!config.Git.AutoCommit)
-            return;
+            return true;
 
         var round = await storyRepo.GetRoundsAsync(story.Id);
-        await git.CommitStoryAsync(story.Name, epic.Name, round);
-        await storyRepo.AddEventAsync(
-            story.Id,
-            StoryEventType.Committed,
-            $"Committed story '{story.Name}' on branch {epic.BranchName}"
+        var result = await git.CommitStoryAsync(story.Name, epic.Name, round);
+        if (result.Success)
+        {
+            await storyRepo.AddEventAsync(
+                story.Id,
+                StoryEventType.Committed,
+                $"Committed story '{story.Name}' on branch {epic.BranchName}"
+            );
+            ui.ShowSuccess($"Committed: {story.Name}");
+            return true;
+        }
+
+        // Commit failed — hook or other error; feed output back to developer agent to fix
+        ui.ShowError(
+            $"git commit failed (pre-commit hook or other error). Sending to developer to fix..."
         );
-        ui.ShowSuccess($"Committed: {story.Name}");
+        await storyRepo.AddEventAsync(story.Id, StoryEventType.CommitFail, result.Output);
+
+        var fixResult = await runner.RunAsync(
+            factory.ForDeveloper(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+            BuildCommitFixPrompt(story, result.Output),
+            "Developer (Amelia) — Fix Commit Hook",
+            ct
+        );
+        await storyRepo.AddTokensAsync(story.Id, fixResult.TokensUsed);
+
+        // Retry commit after fix
+        ui.ShowInfo("Retrying git commit after fix...");
+        var retryResult = await git.CommitStoryAsync(story.Name, epic.Name, round);
+        if (retryResult.Success)
+        {
+            await storyRepo.AddEventAsync(
+                story.Id,
+                StoryEventType.Committed,
+                $"Committed story '{story.Name}' on branch {epic.BranchName} (after hook fix)"
+            );
+            ui.ShowSuccess($"Committed: {story.Name}");
+            return true;
+        }
+
+        // Still failing — record failure and loop back to Developer
+        ui.ShowError("git commit still failing after fix attempt. Restarting story loop.");
+        await storyRepo.AddEventAsync(story.Id, StoryEventType.CommitFail, retryResult.Output);
+        return false;
     }
+
+    private static string BuildCommitFixPrompt(Story story, string hookOutput) =>
+        $"""
+            git commit failed because a pre-commit hook rejected the staged changes.
+            Fix the code so the hook passes, then the commit will be retried automatically.
+
+            DO NOT run git commit yourself — it will be retried automatically after your fix.
+
+            <hook-output>
+            {hookOutput}
+            </hook-output>
+
+            Story being implemented: {story.Name}
+            """;
 
     private static string BuildDeveloperPrompt(
         Epic epic,
@@ -615,6 +671,7 @@ public class StoryLoopPhase(
                 StoryEventType.BuildPass => StoryResumeStep.Commit,
                 StoryEventType.QaPass => StoryResumeStep.Test,
                 StoryEventType.DevComplete or StoryEventType.UiSmokePass => StoryResumeStep.Qa,
+                StoryEventType.CommitFail => StoryResumeStep.Developer,
                 _ => StoryResumeStep.Developer,
             };
         }
