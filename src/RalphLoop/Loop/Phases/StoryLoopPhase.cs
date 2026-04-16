@@ -128,7 +128,13 @@ public class StoryLoopPhase(
                 );
 
                 // Step 1: Developer implements the story
-                var devResult = await RunDeveloperAsync(epic, story, failureHistory, reviewContext, ct);
+                var devResult = await RunDeveloperAsync(
+                    epic,
+                    story,
+                    failureHistory,
+                    reviewContext,
+                    ct
+                );
                 await storyRepo.AddTokensAsync(story.Id, devResult.TokensUsed);
                 await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.ReadyForReview);
                 await storyRepo.AddEventAsync(
@@ -190,7 +196,9 @@ public class StoryLoopPhase(
                     // Swarm triggers exactly at the threshold and every MaxQaFails thereafter
                     if (failCount % config.MaxQaFailsBeforeSwarm == 0)
                     {
-                        ui.ShowWarning($"QA failed {failCount} times — launching party-mode SWARM...");
+                        ui.ShowWarning(
+                            $"QA failed {failCount} times — launching party-mode SWARM..."
+                        );
                         await RunSwarmAsync(story, qaResult.Response, failCount, ct);
                     }
                     else
@@ -582,12 +590,22 @@ public class StoryLoopPhase(
             return StoryResumeStep.Commit;
         if (string.Equals(storyStatus, StoryStatus.QaPassed, StringComparison.OrdinalIgnoreCase))
             return StoryResumeStep.Test;
-        if (string.Equals(storyStatus, StoryStatus.ReadyForReview, StringComparison.OrdinalIgnoreCase))
+        if (
+            string.Equals(
+                storyStatus,
+                StoryStatus.ReadyForReview,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
             return StoryResumeStep.Qa;
 
         if (
             string.Equals(storyStatus, StoryStatus.Pending, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(storyStatus, StoryStatus.InProgress, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                storyStatus,
+                StoryStatus.InProgress,
+                StringComparison.OrdinalIgnoreCase
+            )
             || string.Equals(storyStatus, StoryStatus.Failed, StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(storyStatus)
         )

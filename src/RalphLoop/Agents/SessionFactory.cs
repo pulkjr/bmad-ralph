@@ -178,9 +178,13 @@ public class SessionFactory(RalphLoopConfig config)
         Build(
             config.Models.Default,
             "bmad-create-story",
-            // BMAD skill defines story creation workflow. Add ledger.db update instructions.
+            // BMAD skill defines story creation workflow. Add ledger.db and markdown file update instructions.
             "You are refining existing stories based on agreed team feedback. "
-                + "Update story descriptions and acceptance criteria in ledger.db as directed.",
+                + "Apply all agreed changes consistently across ALL of these sources: "
+                + "(1) ledger.db stories table via SQL UPDATEs, "
+                + "(2) epics.md in the planning artifacts directory if it exists, and "
+                + "(3) any story .md files already created in the implementation artifacts directory. "
+                + "Do NOT create new story files — only update existing ones.",
             onPermission,
             onUserInput
         );

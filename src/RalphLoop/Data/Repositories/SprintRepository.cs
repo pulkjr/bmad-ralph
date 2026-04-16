@@ -8,8 +8,7 @@ public class SprintRepository(LedgerDb db)
     public async Task<Sprint?> GetActiveSprintAsync()
     {
         await using var cmd = db.Connection.CreateCommand();
-        cmd.CommandText =
-            """
+        cmd.CommandText = """
             SELECT id, name, status, created_at
             FROM sprints
             WHERE lower(status) IN ('active', 'in_progress')

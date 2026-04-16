@@ -283,10 +283,16 @@ public class SprintReviewPhase(
     {
         ui.ShowInfo("Applying story refinements to ledger.db...");
 
+        var epicsMdPath = Path.Combine(config.PlanningArtifactsPath, "epics.md");
+        var epicsMdNote = File.Exists(epicsMdPath)
+            ? $"\n4. Update '{epicsMdPath}': for each changed story, find the corresponding story entry in that file and apply the same AC and description changes so the BMAD planning source of truth stays in sync with ledger.db."
+            : "\n4. No epics.md found — skip markdown planning artifact update.";
+
         var prompt = $"""
             Based on the sprint review discussion and the agreed resolutions below, update the
             acceptance_criteria (and description where needed) for any affected stories in
-            '{config.LedgerDbPath}' using raw SQL UPDATEs.
+            '{config.LedgerDbPath}' using raw SQL UPDATEs, and keep the BMAD planning and
+            story markdown files in sync.
 
             Epic: '{epic.Name}'
 
@@ -306,7 +312,12 @@ public class SprintReviewPhase(
                UPDATE stories SET acceptance_criteria = '<updated AC>', description = '<updated description>'
                WHERE epic_id = (SELECT id FROM epics WHERE name = '{epic.Name}')
                AND name = '<story name>';
-            3. After all updates, list each changed story with: REFINED: <story name>
+            3. After all updates, list each changed story with: REFINED: <story name>{epicsMdNote}
+            5. Scan '{config.PlanningArtifactsPath}' (including one level of subdirectories) for any
+               story .md files whose filename matches one of the changed story names (e.g.,
+               '*<story-name>*.md'). For each matching file found, update its acceptance criteria and
+               description sections to reflect the same agreed changes. Do NOT create new story files —
+               only update files that already exist.
             """;
 
         var result = await runner.RunAsync(
