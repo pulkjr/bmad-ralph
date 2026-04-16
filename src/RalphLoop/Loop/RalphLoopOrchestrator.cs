@@ -79,16 +79,37 @@ public class RalphLoopOrchestrator(
     {
         ui.ShowSection($"═══ Epic: {epic.Name} ═══");
 
-        // Phase 2: sprint review + implementation readiness
-        var reviewResult = await phase2.RunAsync(sprint, epic, ct);
-        var startedEpic = reviewResult.Epic;
-
-        // Load or create stories for this epic
-        var storyList = (await stories.GetByEpicAsync(epic.Id))
-            .Where(s => s.Status is not StoryStatus.Complete)
+        // Load all stories for this epic upfront — used for status display and Phase 2 review prompt
+        var allStories = (await stories.GetByEpicAsync(epic.Id))
             .OrderBy(s => s.OrderIndex)
             .ThenBy(s => s.Id)
             .ToList();
+
+        // Show current story status table so the operator has an instant snapshot
+        ui.ShowEpicStatusTable(epic.Name, allStories);
+
+        SprintReviewResult reviewResult;
+
+        if (epic.Status == EpicStatus.InProgress)
+        {
+            // Phase 2 already ran and passed for this epic before the app was stopped.
+            // Skip it entirely — re-running the party mode / confidence vote on an
+            // already-approved epic wastes cost and violates the one-time gate principle.
+            ui.ShowPhase("Phase 2", $"Sprint Review — Epic: {epic.Name}");
+            ui.ShowInfo("Epic is already in-progress — skipping sprint review (already passed).");
+            ui.ShowInfo("Resuming from Phase 3: story loop with remaining incomplete stories.");
+            reviewResult = new SprintReviewResult(epic, string.Empty);
+        }
+        else
+        {
+            // Phase 2: sprint review + implementation readiness (first run)
+            reviewResult = await phase2.RunAsync(sprint, epic, allStories, ct);
+        }
+
+        var startedEpic = reviewResult.Epic;
+
+        // Filter to only incomplete stories for Phase 3
+        var storyList = allStories.Where(s => s.Status is not StoryStatus.Complete).ToList();
 
         if (storyList.Count == 0)
         {

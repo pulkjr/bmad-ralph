@@ -1,5 +1,6 @@
 using GitHub.Copilot.SDK;
 using RalphLoop.Config;
+using RalphLoop.Data.Models;
 using Spectre.Console;
 
 namespace RalphLoop.UI;
@@ -223,6 +224,44 @@ public class ConsoleUI
             {
                 table.AddRow($"[red]  Major issue {i + 1}[/]", Markup.Escape(majorIssues[i]));
             }
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.WriteLine();
+    }
+
+    public void ShowEpicStatusTable(string epicName, IReadOnlyList<Story> allStories)
+    {
+        AnsiConsole.WriteLine();
+        var table = new Table()
+            .Border(TableBorder.Rounded)
+            .BorderStyle(new Style(Color.Cyan1))
+            .Title($"[bold cyan]Epic Status — {Markup.Escape(epicName)}[/]")
+            .AddColumn(new TableColumn("[bold]#[/]").RightAligned())
+            .AddColumn(new TableColumn("[bold]Story[/]"))
+            .AddColumn(new TableColumn("[bold]Status[/]"))
+            .AddColumn(new TableColumn("[bold]Rounds[/]").RightAligned())
+            .AddColumn(new TableColumn("[bold]Fails[/]").RightAligned());
+
+        foreach (var s in allStories.OrderBy(s => s.OrderIndex).ThenBy(s => s.Id))
+        {
+            var statusColor = s.Status switch
+            {
+                StoryStatus.Complete => "green",
+                StoryStatus.QaPassed or StoryStatus.BuildPassed => "cyan",
+                StoryStatus.Failed => "red",
+                StoryStatus.ReadyForReview => "yellow",
+                StoryStatus.InProgress => "blue",
+                _ => "grey",
+            };
+
+            table.AddRow(
+                s.OrderIndex.ToString(),
+                Markup.Escape(s.Name),
+                $"[{statusColor}]{Markup.Escape(s.Status)}[/]",
+                s.Rounds.ToString(),
+                s.FailCount > 0 ? $"[red]{s.FailCount}[/]" : "0"
+            );
         }
 
         AnsiConsole.Write(table);
