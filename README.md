@@ -231,14 +231,15 @@ Program.cs
         │   ├── Party-mode multi-agent review of the epic
         │   │   ├── Each agent reviews stories for ambiguities, risks, and requirements gaps
         │   │   ├── Agents may invoke ask_user to pause the loop for human clarification
-        │   │   └── Each agent emits APPROVED or CONCERNS; facilitator emits CONSENSUS line
+        │   │   └── Each agent casts confidence votes; facilitator emits CONFIDENCE summary
+        │   ├── FAILED (MINOR) → direct story refinement using vote output (no extra party round)
         │   ├── Human confirmation: "Has the team reached consensus?"
         │   │
         │   ├── PHASE 2.5 - Implementation Readiness Gate
         │   │   ├── Architect (Winston) runs bmad-check-implementation-readiness
         │   │   │   └── Emits VERDICT: PASS / CONCERNS / FAIL
         │   │   ├── PASS → proceed immediately
-        │   │   ├── CONCERNS → second party-mode session to resolve; human re-confirms
+        │   │   ├── CONCERNS → direct refinement when actionable; otherwise party-mode resolution
         │   │   └── FAIL → throws; operator must address issues and re-run
         │   │
         │   └── Epic marked InProgress; git branch created (epic/<slugified-name>)

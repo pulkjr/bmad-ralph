@@ -323,4 +323,61 @@ public class SprintReviewPhaseParsingTests
         // All 7 votes should be parsed individually so <minor-issues> has content
         Assert.Equal(7, result.Votes.Count);
     }
+
+    [Fact]
+    public void BuildMinorRefinementContext_WithParsedMinorVotes_UsesMinorIssuesBlock()
+    {
+        const string response =
+            "> VOTE: NO (MINOR) — Missing AC in Story 1.2 | FIX: Add measurable criteria\n"
+            + "CONFIDENCE: FAILED (MINOR) — 1 minor issue";
+
+        var voteResult = SprintReviewPhase.ParseConfidenceVoteResult(response);
+        var context = SprintReviewPhase.BuildMinorRefinementContext(voteResult, "unused");
+
+        Assert.Contains("<minor-issues>", context);
+        Assert.Contains("Missing AC in Story 1.2", context);
+        Assert.DoesNotContain("<review-discussion>", context);
+    }
+
+    [Fact]
+    public void BuildMinorRefinementContext_NoParsedMinorVotes_FallsBackToReviewDiscussion()
+    {
+        const string response = "CONFIDENCE: FAILED (MINOR) — fixes listed in summary only";
+        var voteResult = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        var context = SprintReviewPhase.BuildMinorRefinementContext(
+            voteResult,
+            "Full review transcript."
+        );
+
+        Assert.Contains("<review-discussion>", context);
+        Assert.Contains("Full review transcript.", context);
+    }
+
+    [Fact]
+    public void IsReadinessConcernDirectlyActionable_ConcreteAndNonBlocking_ReturnsTrue()
+    {
+        var response = """
+            ### Summary of Findings
+            | # | Finding | Severity | Story |
+            |---|---|---|---|
+            | 1 | Rename check_results columns to align with architecture naming | Moderate | 1.3 |
+            | 2 | Add AT12/AT22 to Story 1.5 acceptance criteria | Moderate | 1.5 |
+
+            No blockers to implementing the foundation. All stories are actionable.
+
+            VERDICT: CONCERNS — update naming note and assign missing tests to Story 1.5
+            """;
+
+        Assert.True(SprintReviewPhase.IsReadinessConcernDirectlyActionable(response));
+    }
+
+    [Fact]
+    public void IsReadinessConcernDirectlyActionable_BlockingConcern_ReturnsFalse()
+    {
+        const string response =
+            "VERDICT: CONCERNS — Story 1.3 requires product owner decision before implementation.";
+
+        Assert.False(SprintReviewPhase.IsReadinessConcernDirectlyActionable(response));
+    }
 }

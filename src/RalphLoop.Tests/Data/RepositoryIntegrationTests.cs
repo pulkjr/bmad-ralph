@@ -109,6 +109,20 @@ public class RepositoryIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Sprint_GetActive_ReturnsInProgress_WhenLegacyStatusUsed()
+    {
+        var repo = new SprintRepository(_db);
+        var id = await repo.InsertAsync("Legacy Sprint");
+        await repo.UpdateStatusAsync(id, "in_progress");
+
+        var active = await repo.GetActiveSprintAsync();
+
+        Assert.NotNull(active);
+        Assert.Equal(id, active!.Id);
+        Assert.Equal("in_progress", active.Status);
+    }
+
+    [Fact]
     public async Task Sprint_HasEpics_ReturnsFalse_WhenNoEpics()
     {
         var sprintRepo = new SprintRepository(_db);
@@ -366,6 +380,23 @@ public class RepositoryIntegrationTests : IAsyncLifetime
 
         var count = await CountEventRowsAsync(storyId);
         Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public async Task Story_GetLatestEvent_ReturnsMostRecentEvent()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+        var storyId = await repo.InsertAsync(epicId, "S", "", "", 0);
+
+        await repo.AddEventAsync(storyId, StoryEventType.DevStart, "first");
+        await repo.AddEventAsync(storyId, StoryEventType.DevComplete, "second");
+
+        var latest = await repo.GetLatestEventAsync(storyId);
+
+        Assert.NotNull(latest);
+        Assert.Equal(StoryEventType.DevComplete, latest!.EventType);
+        Assert.Equal("second", latest.Details);
     }
 
     [Fact]

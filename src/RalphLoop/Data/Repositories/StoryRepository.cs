@@ -145,6 +145,35 @@ public class StoryRepository(LedgerDb db)
         await cmd.ExecuteNonQueryAsync();
     }
 
+    public async Task<StoryEvent?> GetLatestEventAsync(long storyId)
+    {
+        await using var cmd = db.Connection.CreateCommand();
+        cmd.CommandText = """
+            SELECT id, story_id, event_type, timestamp, details, tokens_used
+            FROM story_events
+            WHERE story_id = @s
+            ORDER BY id DESC
+            LIMIT 1
+            """;
+        cmd.Parameters.AddWithValue("@s", storyId);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+            return null;
+
+        return new StoryEvent
+        {
+            Id = reader.GetInt64(reader.GetOrdinal("id")),
+            StoryId = reader.GetInt64(reader.GetOrdinal("story_id")),
+            EventType = reader.GetString(reader.GetOrdinal("event_type")),
+            Timestamp = DateTime.Parse(
+                reader.GetString(reader.GetOrdinal("timestamp")),
+                System.Globalization.CultureInfo.InvariantCulture
+            ),
+            Details = reader.GetString(reader.GetOrdinal("details")),
+            TokensUsed = reader.GetInt64(reader.GetOrdinal("tokens_used")),
+        };
+    }
+
     public async Task InsertRetrospectiveAsync(long epicId, string notes)
     {
         await using var cmd = db.Connection.CreateCommand();

@@ -9,7 +9,13 @@ public class SprintRepository(LedgerDb db)
     {
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText =
-            "SELECT id, name, status, created_at FROM sprints WHERE status = 'active' ORDER BY id DESC LIMIT 1";
+            """
+            SELECT id, name, status, created_at
+            FROM sprints
+            WHERE lower(status) IN ('active', 'in_progress')
+            ORDER BY CASE WHEN lower(status) = 'active' THEN 0 ELSE 1 END, id DESC
+            LIMIT 1
+            """;
         await using var reader = await cmd.ExecuteReaderAsync();
         if (!await reader.ReadAsync())
             return null;

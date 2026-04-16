@@ -45,7 +45,9 @@ public class StoryLoopPhase(
             var story = stories[i];
             ui.ShowSection($"Story {i + 1}/{stories.Count}: {story.Name}");
 
-            // Insert or update story record
+            StoryResumeStep resumeStep;
+
+            // Insert or resume existing story record
             if (story.Id == 0)
             {
                 story.Id = await storyRepo.InsertAsync(
@@ -55,19 +57,29 @@ public class StoryLoopPhase(
                     story.AcceptanceCriteria,
                     story.OrderIndex
                 );
+                resumeStep = StoryResumeStep.Developer;
             }
             else
             {
-                await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.InProgress);
+                var latestEvent = await storyRepo.GetLatestEventAsync(story.Id);
+                resumeStep = DetermineResumeStep(story.Status, latestEvent?.EventType);
+
+                if (resumeStep is not StoryResumeStep.Developer)
+                {
+                    ui.ShowInfo(
+                        $"Resuming story from {resumeStep} (status='{story.Status}', last_event='{latestEvent?.EventType ?? "none"}')."
+                    );
+                }
             }
 
-            await ProcessStoryAsync(epic, story, reviewContext, ct);
+            await ProcessStoryAsync(epic, story, resumeStep, reviewContext, ct);
         }
     }
 
     private async Task ProcessStoryAsync(
         Epic epic,
         Story story,
+        StoryResumeStep initialStep,
         string? reviewContext,
         CancellationToken ct
     )
@@ -80,136 +92,164 @@ public class StoryLoopPhase(
         // Accumulate failure context across rounds so the developer can learn from history
         var failureHistory = new List<string>();
 
+        var round = await storyRepo.GetRoundsAsync(story.Id);
+        var currentStep = initialStep;
         bool storyComplete = false;
-        int round = 0;
         while (!storyComplete)
         {
-            round++;
-            if (round > config.MaxStoryRounds)
+            if (currentStep is StoryResumeStep.Developer)
             {
-                ui.ShowError(
-                    $"Story '{story.Name}' exceeded max rounds ({config.MaxStoryRounds}). Marking as failed."
-                );
-                await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.Failed);
-                await storyRepo.AddEventAsync(
-                    story.Id,
-                    StoryEventType.QaFail,
-                    $"Exceeded MaxStoryRounds ({config.MaxStoryRounds}). Manual intervention required."
-                );
-                throw new OperationCanceledException(
-                    $"Story '{story.Name}' exceeded {config.MaxStoryRounds} rounds."
-                );
-            }
-
-            await storyRepo.IncrementRoundAsync(story.Id, failed: false);
-            await storyRepo.AddEventAsync(story.Id, StoryEventType.DevStart);
-            ui.ShowStoryStatus(
-                story.Name,
-                StoryStatus.InProgress,
-                round,
-                story.FailCount,
-                story.TokensUsed
-            );
-
-            // Step 1: Developer implements the story
-            var devResult = await RunDeveloperAsync(epic, story, failureHistory, reviewContext, ct);
-            await storyRepo.AddTokensAsync(story.Id, devResult.TokensUsed);
-            await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.ReadyForReview);
-            await storyRepo.AddEventAsync(
-                story.Id,
-                StoryEventType.DevComplete,
-                tokens: devResult.TokensUsed
-            );
-
-            // Step 2: agent-tui smoke test (UX stories only)
-            if (isUxStory && await agentTui.IsAvailableAsync())
-            {
-                ui.ShowInfo("Running agent-tui smoke test...");
-                var smokeResult = await agentTui.SmokeTestAsync(GetAppCommand(), ct);
-                if (!smokeResult.Passed)
+                round++;
+                if (round > config.MaxStoryRounds)
                 {
-                    ui.ShowWarning($"agent-tui smoke test failed: {smokeResult.Details}");
+                    ui.ShowError(
+                        $"Story '{story.Name}' exceeded max rounds ({config.MaxStoryRounds}). Marking as failed."
+                    );
+                    await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.Failed);
                     await storyRepo.AddEventAsync(
                         story.Id,
-                        StoryEventType.UiSmokeFail,
-                        smokeResult.Details
+                        StoryEventType.QaFail,
+                        $"Exceeded MaxStoryRounds ({config.MaxStoryRounds}). Manual intervention required."
                     );
-                    var smokeFailure =
-                        $"UI Smoke Test Failed (round {round}):\n{smokeResult.Details}";
-                    failureHistory.Add(smokeFailure);
-                    await HandleQaFailAsync(epic, story, smokeFailure, failureHistory, ct);
-                    continue;
+                    throw new OperationCanceledException(
+                        $"Story '{story.Name}' exceeded {config.MaxStoryRounds} rounds."
+                    );
                 }
-                ui.ShowSuccess("agent-tui smoke test passed.");
-                await storyRepo.AddEventAsync(story.Id, StoryEventType.UiSmokePass);
-            }
 
-            // Step 3: QA review
-            var qaResult = await RunQaAsync(story, isUxStory, round, failureHistory, ct);
-            await storyRepo.AddTokensAsync(story.Id, qaResult.TokensUsed);
+                await storyRepo.IncrementRoundAsync(story.Id, failed: false);
+                await storyRepo.AddEventAsync(story.Id, StoryEventType.DevStart);
+                await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.InProgress);
+                ui.ShowStoryStatus(
+                    story.Name,
+                    StoryStatus.InProgress,
+                    round,
+                    story.FailCount,
+                    story.TokensUsed
+                );
 
-            var qaPassed = IsPositiveOutcome(qaResult.Response);
-            if (!qaPassed)
-            {
-                await storyRepo.IncrementFailCountAsync(story.Id);
+                // Step 1: Developer implements the story
+                var devResult = await RunDeveloperAsync(epic, story, failureHistory, reviewContext, ct);
+                await storyRepo.AddTokensAsync(story.Id, devResult.TokensUsed);
+                await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.ReadyForReview);
                 await storyRepo.AddEventAsync(
                     story.Id,
-                    StoryEventType.QaFail,
+                    StoryEventType.DevComplete,
+                    tokens: devResult.TokensUsed
+                );
+                currentStep = StoryResumeStep.Qa;
+                continue;
+            }
+
+            if (currentStep is StoryResumeStep.Qa)
+            {
+                // Step 2: agent-tui smoke test (UX stories only)
+                if (isUxStory && await agentTui.IsAvailableAsync())
+                {
+                    ui.ShowInfo("Running agent-tui smoke test...");
+                    var smokeResult = await agentTui.SmokeTestAsync(GetAppCommand(), ct);
+                    if (!smokeResult.Passed)
+                    {
+                        ui.ShowWarning($"agent-tui smoke test failed: {smokeResult.Details}");
+                        await storyRepo.AddEventAsync(
+                            story.Id,
+                            StoryEventType.UiSmokeFail,
+                            smokeResult.Details
+                        );
+                        var smokeFailure =
+                            $"UI Smoke Test Failed (round {round}):\n{smokeResult.Details}";
+                        failureHistory.Add(smokeFailure);
+                        await HandleQaFailAsync(epic, story, smokeFailure, failureHistory, ct);
+                        currentStep = StoryResumeStep.Developer;
+                        continue;
+                    }
+                    ui.ShowSuccess("agent-tui smoke test passed.");
+                    await storyRepo.AddEventAsync(story.Id, StoryEventType.UiSmokePass);
+                }
+
+                // Step 3: QA review
+                var qaResult = await RunQaAsync(story, isUxStory, round, failureHistory, ct);
+                await storyRepo.AddTokensAsync(story.Id, qaResult.TokensUsed);
+
+                var qaPassed = IsPositiveOutcome(qaResult.Response);
+                if (!qaPassed)
+                {
+                    await storyRepo.IncrementFailCountAsync(story.Id);
+                    await storyRepo.AddEventAsync(
+                        story.Id,
+                        StoryEventType.QaFail,
+                        qaResult.Response,
+                        qaResult.TokensUsed
+                    );
+
+                    var failCount = await storyRepo.GetFailCountAsync(story.Id);
+                    ui.ShowWarning($"QA failed (fail #{failCount})");
+
+                    var qaFailure = $"QA Failure (round {round}):\n{qaResult.Response}";
+                    failureHistory.Add(qaFailure);
+
+                    // Swarm triggers exactly at the threshold and every MaxQaFails thereafter
+                    if (failCount % config.MaxQaFailsBeforeSwarm == 0)
+                    {
+                        ui.ShowWarning($"QA failed {failCount} times — launching party-mode SWARM...");
+                        await RunSwarmAsync(story, qaResult.Response, failCount, ct);
+                    }
+                    else
+                    {
+                        ui.ShowInfo("Looping back to developer with QA failure report...");
+                    }
+                    currentStep = StoryResumeStep.Developer;
+                    continue;
+                }
+
+                // QA passed
+                await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.QaPassed);
+                await storyRepo.AddEventAsync(
+                    story.Id,
+                    StoryEventType.QaPass,
                     qaResult.Response,
                     qaResult.TokensUsed
                 );
-
-                var failCount = await storyRepo.GetFailCountAsync(story.Id);
-                ui.ShowWarning($"QA failed (fail #{failCount})");
-
-                var qaFailure = $"QA Failure (round {round}):\n{qaResult.Response}";
-                failureHistory.Add(qaFailure);
-
-                // Swarm triggers exactly at the threshold and every MaxQaFails thereafter
-                if (failCount % config.MaxQaFailsBeforeSwarm == 0)
-                {
-                    ui.ShowWarning($"QA failed {failCount} times — launching party-mode SWARM...");
-                    await RunSwarmAsync(story, qaResult.Response, failCount, ct);
-                }
-                else
-                {
-                    ui.ShowInfo("Looping back to developer with QA failure report...");
-                }
+                ui.ShowSuccess("QA passed!");
+                currentStep = StoryResumeStep.Test;
                 continue;
             }
 
-            // QA passed
-            await storyRepo.UpdateStatusAsync(story.Id, StoryStatus.QaPassed);
-            await storyRepo.AddEventAsync(
-                story.Id,
-                StoryEventType.QaPass,
-                qaResult.Response,
-                qaResult.TokensUsed
-            );
-            ui.ShowSuccess("QA passed!");
-
-            // Step 4: test.sh
-            var testPassed = await RunTestScriptAsync(story, isUxStory, ct);
-            if (!testPassed)
+            if (currentStep is StoryResumeStep.Test)
+            {
+                // Step 4: test.sh
+                var testPassed = await RunTestScriptAsync(story, isUxStory, ct);
+                if (!testPassed)
+                {
+                    currentStep = StoryResumeStep.Developer;
+                    continue;
+                }
+                currentStep = StoryResumeStep.Commit;
                 continue;
+            }
 
             // Step 5: Commit and mark complete — wrapped in a transaction to ensure atomicity (M12)
-            await using (var tx = await db.BeginTransactionAsync())
+            if (currentStep is StoryResumeStep.Commit)
             {
-                try
+                await using (var tx = await db.BeginTransactionAsync())
                 {
-                    await CommitStoryAsync(epic, story);
-                    await storyRepo.MarkCompleteAsync(story.Id);
-                    await tx.CommitAsync();
+                    try
+                    {
+                        await CommitStoryAsync(epic, story);
+                        await storyRepo.MarkCompleteAsync(story.Id);
+                        await tx.CommitAsync();
+                    }
+                    catch
+                    {
+                        await tx.RollbackAsync();
+                        throw;
+                    }
                 }
-                catch
-                {
-                    await tx.RollbackAsync();
-                    throw;
-                }
+                ui.ShowSuccess($"Story '{story.Name}' complete! ✅");
+                storyComplete = true;
+                continue;
             }
-            ui.ShowSuccess($"Story '{story.Name}' complete! ✅");
-            storyComplete = true;
+
+            throw new InvalidOperationException($"Unknown resume step '{currentStep}' for story.");
         }
     }
 
@@ -536,6 +576,34 @@ public class StoryLoopPhase(
         return text.Contains("ux") || text.Contains("tui") || text.Contains("ui ");
     }
 
+    internal static StoryResumeStep DetermineResumeStep(string storyStatus, string? latestEventType)
+    {
+        if (string.Equals(storyStatus, StoryStatus.BuildPassed, StringComparison.OrdinalIgnoreCase))
+            return StoryResumeStep.Commit;
+        if (string.Equals(storyStatus, StoryStatus.QaPassed, StringComparison.OrdinalIgnoreCase))
+            return StoryResumeStep.Test;
+        if (string.Equals(storyStatus, StoryStatus.ReadyForReview, StringComparison.OrdinalIgnoreCase))
+            return StoryResumeStep.Qa;
+
+        if (
+            string.Equals(storyStatus, StoryStatus.Pending, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(storyStatus, StoryStatus.InProgress, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(storyStatus, StoryStatus.Failed, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(storyStatus)
+        )
+        {
+            return latestEventType switch
+            {
+                StoryEventType.BuildPass => StoryResumeStep.Commit,
+                StoryEventType.QaPass => StoryResumeStep.Test,
+                StoryEventType.DevComplete or StoryEventType.UiSmokePass => StoryResumeStep.Qa,
+                _ => StoryResumeStep.Developer,
+            };
+        }
+
+        return StoryResumeStep.Developer;
+    }
+
     private static bool IsPositiveOutcome(string response)
     {
         // Parse the structured VERDICT: line emitted at the end of QA responses.
@@ -583,5 +651,13 @@ public class StoryLoopPhase(
                 return trimmed["VERDICT:".Length..].Trim();
         }
         return null;
+    }
+
+    internal enum StoryResumeStep
+    {
+        Developer,
+        Qa,
+        Test,
+        Commit,
     }
 }
