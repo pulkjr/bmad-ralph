@@ -58,4 +58,10 @@ public class GitConfig
     public bool AutoCommit { get; set; } = true;
     public string MergeStrategy { get; set; } = "fast-forward";
     public bool UseEntire { get; set; } = true;
+
+    /// <summary>
+    /// Seconds to wait for a git operation before cancelling.
+    /// Prevents indefinite hangs caused by slow pre-commit hooks (e.g. entire).
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 60;
 }

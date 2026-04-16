@@ -5,7 +5,7 @@ namespace RalphLoop.Git;
 /// <summary>
 /// Manages git operations for the ralph loop: branch per epic, entire.io commits, FF merge.
 /// </summary>
-public class GitManager(string projectPath)
+public class GitManager(string projectPath, int timeoutSeconds = 60)
 {
     public async Task<bool> IsEntireEnabledAsync()
     {
@@ -47,14 +47,27 @@ public class GitManager(string projectPath)
             return new CommitResult(false, $"git add failed: {addResult.StdErr}");
 
         // Commit message is passed via stdin (-F -), not as a shell argument — safe.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
         var commitResult = await RunWithStdinAsync(
             "git",
             ["commit", "-F", "-"],
             projectPath,
-            message
+            message,
+            cts.Token
         );
+
         if (commitResult.ExitCode != 0)
-            return new CommitResult(false, commitResult.StdErr);
+        {
+            // A clean working tree is not a failure — the story was already committed.
+            var combined = commitResult.StdOut + commitResult.StdErr;
+            if (
+                combined.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("nothing added to commit", StringComparison.OrdinalIgnoreCase)
+            )
+                return new CommitResult(true, "nothing to commit — story was already committed");
+
+            return new CommitResult(false, combined);
+        }
 
         return new CommitResult(true, commitResult.StdOut);
     }
@@ -144,7 +157,8 @@ public class GitManager(string projectPath)
         string executable,
         string[] args,
         string workDir,
-        string stdin
+        string stdin,
+        CancellationToken ct = default
     )
     {
         var psi = new ProcessStartInfo
@@ -167,11 +181,22 @@ public class GitManager(string projectPath)
         await process.StandardInput.WriteAsync(stdin);
         process.StandardInput.Close();
 
-        var stdOut = await process.StandardOutput.ReadToEndAsync();
-        var stdErr = await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        // Read stdout and stderr concurrently — sequential reads risk deadlock if the
+        // process fills one pipe buffer while we block waiting on the other stream.
+        var stdOutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stdErrTask = process.StandardError.ReadToEndAsync(ct);
 
-        return new ProcessResult(process.ExitCode, stdOut, stdErr);
+        try
+        {
+            await process.WaitForExitAsync(ct);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
+
+        return new ProcessResult(process.ExitCode, await stdOutTask, await stdErrTask);
     }
 
     private static async Task<ProcessResult> RunAsync(
@@ -196,11 +221,12 @@ public class GitManager(string projectPath)
             Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start {executable}");
 
-        var stdOut = await process.StandardOutput.ReadToEndAsync();
-        var stdErr = await process.StandardError.ReadToEndAsync();
+        // Read stdout and stderr concurrently to prevent OS pipe buffer deadlock.
+        var stdOutTask = process.StandardOutput.ReadToEndAsync();
+        var stdErrTask = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
 
-        return new ProcessResult(process.ExitCode, stdOut, stdErr);
+        return new ProcessResult(process.ExitCode, await stdOutTask, await stdErrTask);
     }
 
     private sealed record ProcessResult(int ExitCode, string StdOut, string StdErr);
