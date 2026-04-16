@@ -52,6 +52,22 @@ public sealed class SessionFactorySkillInjectionTests : IDisposable
         Assert.Contains("PM identity marker.", pm.Prompt);
     }
 
+    [Fact]
+    public void BuildPartyPersonas_DeveloperUsesQuickDevSkillContent()
+    {
+        var shared = Path.Combine(_tempDir, "skills");
+        var quickDevSkillDir = Path.Combine(shared, "bmad-quick-dev");
+        Directory.CreateDirectory(quickDevSkillDir);
+        File.WriteAllText(Path.Combine(quickDevSkillDir, "SKILL.md"), "Quick dev marker.");
+
+        var factory = new SessionFactory(BuildConfig(shared));
+        var personas = factory.BuildPartyPersonas(includeUxDesigner: false);
+        var developer = Assert.Single(personas.Where(p => p.Name == "developer"));
+
+        Assert.Contains("Quick dev marker.", developer.Prompt);
+        Assert.Contains("BMAD SKILL CONTEXT (bmad-quick-dev)", developer.Prompt);
+    }
+
     private RalphLoopConfig BuildConfig(string sharedSkillDir) =>
         new()
         {

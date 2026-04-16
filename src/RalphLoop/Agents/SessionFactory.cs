@@ -209,7 +209,7 @@ public class SessionFactory(RalphLoopConfig config)
     {
         var skillByPersona = new Dictionary<string, string>();
         AddPartyPersonaSkill(skillByPersona, "product-manager", "bmad-agent-pm");
-        AddPartyPersonaSkill(skillByPersona, "developer", "bmad-agent-dev");
+        AddPartyPersonaSkill(skillByPersona, "developer", "bmad-quick-dev");
         AddPartyPersonaSkill(skillByPersona, "architect", "bmad-agent-architect");
         AddPartyPersonaSkill(skillByPersona, "tech-writer", "bmad-agent-tech-writer");
         AddPartyPersonaSkill(skillByPersona, "ux-designer", "bmad-agent-ux-designer");
@@ -237,6 +237,7 @@ public class SessionFactory(RalphLoopConfig config)
             SkillDirectories = _skillDirs,
             OnPermissionRequest = onPermission,
             WorkingDirectory = config.ProjectPath,
+            EnableConfigDiscovery = true,
         };
 
         // Only set a system message if there's deployment-specific content to add.
