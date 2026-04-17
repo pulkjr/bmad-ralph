@@ -103,6 +103,21 @@ public class EpicCompletionPhase(
             await partyMode.RunAsync(personas, swarmPrompt, $"Epic Swarm — {epic.Name}", ct);
         } while (swarmAttempt < MaxSwarmAttempts);
 
+        // After the final swarm, do one more pass before asking the operator to force-proceed.
+        // The swarm commits fixes that the preceding RunAllReviewsAsync couldn't see yet.
+        if (failures.Count > 0)
+        {
+            ui.ShowSection("Final Re-verification (post-swarm)");
+            failures = await RunAllReviewsAsync(
+                epic,
+                artifacts,
+                hasUxSpec,
+                changedFilesContext,
+                verdictInstruction,
+                ct
+            );
+        }
+
         if (
             failures.Count > 0
             && !ui.Confirm(
@@ -244,12 +259,14 @@ public class EpicCompletionPhase(
         return failures;
     }
 
-    private static bool IsAllPassed(string response)
+    internal static bool IsAllPassed(string response)
     {
-        // Use structured VERDICT: line if present
+        // Use structured VERDICT: line if present.
+        // RESOLVED is the swarm's success signal and is also treated as a pass.
         var verdict = StoryLoopPhase.ExtractVerdict(response);
         if (verdict is not null)
-            return verdict.StartsWith("PASS", StringComparison.OrdinalIgnoreCase);
+            return verdict.StartsWith("PASS", StringComparison.OrdinalIgnoreCase)
+                || verdict.StartsWith("RESOLVED", StringComparison.OrdinalIgnoreCase);
 
         // Fallback: whole-word FAIL match only (avoids matching "No VIOLATIONS found")
         return !System.Text.RegularExpressions.Regex.IsMatch(
@@ -259,7 +276,7 @@ public class EpicCompletionPhase(
         );
     }
 
-    private static bool AllApproved(string response)
+    internal static bool AllApproved(string response)
     {
         // Check for the structured CONSENSUS: line
         foreach (var line in response.Split('\n').Reverse())
