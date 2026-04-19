@@ -126,6 +126,18 @@ public sealed class LedgerDb : IAsyncDisposable, IDisposable
         {
             // Already migrated — no action needed
         }
+
+        // Add file_path for file-based storage mode
+        try
+        {
+            await using var cmd = _connection!.CreateCommand();
+            cmd.CommandText = "ALTER TABLE stories ADD COLUMN file_path TEXT NOT NULL DEFAULT ''";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("duplicate column"))
+        {
+            // Already migrated — no action needed
+        }
     }
 
     public void Dispose()

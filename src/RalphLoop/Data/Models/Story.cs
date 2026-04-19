@@ -14,6 +14,15 @@ public class Story
     public int Rounds { get; set; } = 0;
     public int FailCount { get; set; } = 0;
     public long TokensUsed { get; set; } = 0;
+
+    /// <summary>
+    /// Absolute path to the story .md file (file storage mode only).
+    /// Empty string in sqlite storage mode.
+    /// </summary>
+    public string FilePath { get; set; } = "";
+
+    /// <summary>Returns true if this story is backed by a .md file (file storage mode).</summary>
+    public bool IsFileBacked => !string.IsNullOrEmpty(FilePath);
 }
 
 public static class StoryStatus

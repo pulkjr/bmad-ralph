@@ -11,7 +11,8 @@ public class StoryRepository(LedgerDb db)
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = """
             SELECT id, epic_id, name, description, order_index, status,
-                   start_time, end_time, rounds, fail_count, tokens_used, acceptance_criteria
+                   start_time, end_time, rounds, fail_count, tokens_used,
+                   acceptance_criteria, file_path
             FROM stories WHERE epic_id = @e ORDER BY order_index, id
             """;
         cmd.Parameters.AddWithValue("@e", epicId);
@@ -41,6 +42,44 @@ public class StoryRepository(LedgerDb db)
         cmd.Parameters.AddWithValue("@ac", acceptanceCriteria);
         cmd.Parameters.AddWithValue("@o", orderIndex);
         return (long)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>
+    /// Inserts a story record for file-based storage mode.
+    /// Sets status to 'pending' (not 'in_progress') and stores the file path.
+    /// start_time is not set — the loop sets it when the story begins.
+    /// description is populated with a short snippet from the story file for
+    /// party-mode review context (see StoryFileManager.ReadShortDescriptionAsync).
+    /// </summary>
+    public async Task<long> InsertFileStoryAsync(
+        long epicId,
+        string name,
+        string filePath,
+        int orderIndex,
+        string shortDescription = ""
+    )
+    {
+        await using var cmd = db.Connection.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO stories (epic_id, name, description, acceptance_criteria, order_index, status, file_path)
+            VALUES (@e, @n, @d, '', @o, 'pending', @fp);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("@e", epicId);
+        cmd.Parameters.AddWithValue("@n", name);
+        cmd.Parameters.AddWithValue("@d", shortDescription);
+        cmd.Parameters.AddWithValue("@o", orderIndex);
+        cmd.Parameters.AddWithValue("@fp", filePath);
+        return (long)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    public async Task UpdateFilePathAsync(long storyId, string filePath)
+    {
+        await using var cmd = db.Connection.CreateCommand();
+        cmd.CommandText = "UPDATE stories SET file_path = @fp WHERE id = @id";
+        cmd.Parameters.AddWithValue("@fp", filePath);
+        cmd.Parameters.AddWithValue("@id", storyId);
+        await cmd.ExecuteNonQueryAsync();
     }
 
     /// <summary>
@@ -210,5 +249,8 @@ public class StoryRepository(LedgerDb db)
             AcceptanceCriteria = r.IsDBNull(r.GetOrdinal("acceptance_criteria"))
                 ? string.Empty
                 : r.GetString(r.GetOrdinal("acceptance_criteria")),
+            FilePath = r.IsDBNull(r.GetOrdinal("file_path"))
+                ? string.Empty
+                : r.GetString(r.GetOrdinal("file_path")),
         };
 }

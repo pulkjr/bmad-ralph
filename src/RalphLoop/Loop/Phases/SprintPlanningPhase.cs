@@ -2,6 +2,7 @@ using GitHub.Copilot.SDK;
 using RalphLoop.Agents;
 using RalphLoop.Config;
 using RalphLoop.Data;
+using RalphLoop.Data.FileStore;
 using RalphLoop.Data.Models;
 using RalphLoop.Data.Repositories;
 using RalphLoop.UI;
@@ -11,11 +12,15 @@ namespace RalphLoop.Loop.Phases;
 /// <summary>
 /// Phase 1: Sprint Planning.
 /// Checks ledger.db, ensures an active sprint exists, and runs bmad-sprint-planning.
+/// In file-based storage mode, reads sprint-status.yaml and creates SQLite records from it.
 /// </summary>
 public class SprintPlanningPhase(
     SessionFactory factory,
     AgentRunner runner,
     SprintRepository sprints,
+    EpicRepository epics,
+    StoryRepository storyRepo,
+    FileStoreContext fileStore,
     ConsoleUI ui,
     RalphLoopConfig config
 )
@@ -24,6 +29,16 @@ public class SprintPlanningPhase(
     {
         ui.ShowPhase("Phase 1", "Sprint Planning");
 
+        if (config.StorageMode == StorageModes.File)
+            return await RunFileModeAsync(ct);
+
+        return await RunSqliteModeAsync(ct);
+    }
+
+    // ─── SQLite mode (existing behaviour, completely unchanged) ───────────────
+
+    private async Task<Sprint> RunSqliteModeAsync(CancellationToken ct)
+    {
         // Ensure ledger.db exists (already opened by LedgerDb)
         if (!File.Exists(config.LedgerDbPath))
         {
@@ -112,6 +127,251 @@ public class SprintPlanningPhase(
         }
 
         return activeSprint;
+    }
+
+    // ─── File mode (new) ─────────────────────────────────────────────────────
+
+    private async Task<Sprint> RunFileModeAsync(CancellationToken ct)
+    {
+        var yamlPath = Path.Combine(config.ImplementationArtifactsPath, "sprint-status.yaml");
+
+        // Step a: locate or create sprint-status.yaml
+        if (!File.Exists(yamlPath))
+        {
+            ui.ShowWarning(
+                $"sprint-status.yaml not found in '{config.ImplementationArtifactsPath}'. "
+                    + "Running bmad-sprint-planning to create it..."
+            );
+            await RunSprintPlanningSkillAsync(yamlPath, ct);
+        }
+
+        if (!File.Exists(yamlPath))
+            throw new InvalidOperationException(
+                $"bmad-sprint-planning did not produce sprint-status.yaml at '{yamlPath}'. "
+                    + "Check the agent output and ensure the skill writes to that path."
+            );
+
+        // Step b: load the yaml and configure FileStoreContext
+        fileStore.Initialize(yamlPath);
+        var sprintStatus = await fileStore.GetAsync();
+
+        // Step c: find or create active sprint
+        var activeSprint = await sprints.GetActiveSprintAsync();
+        if (activeSprint is null)
+        {
+            var all = await sprints.GetAllAsync();
+            var name = $"Sprint {all.Count + 1}";
+            var id = await sprints.InsertAsync(name);
+            activeSprint = new Sprint
+            {
+                Id = id,
+                Name = name,
+                Status = SprintStatus.Active,
+            };
+            ui.ShowSuccess($"Sprint '{name}' created.");
+        }
+        ui.ShowInfo($"Active sprint: [{activeSprint.Id}] {activeSprint.Name}");
+
+        // Skip if already populated (resume scenario)
+        if (await sprints.HasEpicsAsync(activeSprint.Id))
+        {
+            ui.ShowInfo("Sprint already has epics — skipping file-mode planning import.");
+            return activeSprint;
+        }
+
+        // Step d: create epic records from YAML
+        var epicKeyToId = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        foreach (var epicEntry in sprintStatus.GetEpicsOnly())
+        {
+            var epicName = ToHumanName(epicEntry.Key);
+            var epicId = await epics.InsertAsync(activeSprint.Id, epicName, "");
+            epicKeyToId[epicEntry.Key] = epicId;
+            ui.ShowInfo($"  Epic: [{epicId}] {epicName}");
+        }
+
+        if (epicKeyToId.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"sprint-status.yaml has no epic entries. "
+                    + "Ensure the YAML uses keys starting with 'epic-' (e.g. 'epic-1', 'epic-auth')."
+            );
+        }
+
+        // Use the first epic as fallback if story keys don't match a specific epic
+        var fallbackEpicId = epicKeyToId.Values.First();
+
+        // Step e: process stories
+        int orderIndex = 0;
+        foreach (var storyEntry in sprintStatus.GetStoriesOnly())
+        {
+            var storyKey = storyEntry.Key;
+            var filePath = sprintStatus.ResolveStoryFilePath(storyKey);
+
+            // Step e.1: create story file if backlog + missing
+            if (
+                string.Equals(storyEntry.Status, "backlog", StringComparison.OrdinalIgnoreCase)
+                && !File.Exists(filePath)
+            )
+            {
+                ui.ShowInfo($"  Story '{storyKey}' is backlog — running bmad-create-story...");
+                await RunCreateStorySkillAsync(storyKey, filePath, ct);
+
+                if (File.Exists(filePath))
+                    await sprintStatus.UpdateStatusAsync(storyKey, "ready-for-dev");
+                else
+                    ui.ShowWarning(
+                        $"  bmad-create-story did not create '{filePath}' — story skipped."
+                    );
+            }
+
+            if (!File.Exists(filePath))
+            {
+                ui.ShowWarning(
+                    $"  Story file not found for '{storyKey}' at '{filePath}' — skipping."
+                );
+                continue;
+            }
+
+            // Step e.2: read title and short description from file
+            var title = await StoryFileManager.ReadTitleAsync(filePath);
+            if (string.IsNullOrWhiteSpace(title))
+                title = ToHumanName(storyKey);
+
+            var shortDesc = await StoryFileManager.ReadShortDescriptionAsync(filePath);
+
+            // Step e.3: check for existing ralph-story-id (resume after ledger.db delete)
+            var existingId = await StoryFileManager.ReadRalphStoryIdAsync(filePath);
+            long storyId;
+
+            if (existingId.HasValue)
+            {
+                // Stale ID from a deleted ledger.db — create fresh record and overwrite
+                ui.ShowInfo(
+                    $"  Story '{storyKey}': stale ralph-story-id {existingId} found — reassigning."
+                );
+            }
+
+            // Determine epic: infer from story key prefix (e.g., "1-1-..." → epic "epic-1")
+            var epicId = InferEpicId(storyKey, epicKeyToId, fallbackEpicId);
+
+            storyId = await storyRepo.InsertFileStoryAsync(
+                epicId,
+                title,
+                filePath,
+                orderIndex++,
+                shortDescription: shortDesc
+            );
+
+            // Step e.4: write ralph-story-id front-matter
+            await StoryFileManager.WriteRalphStoryIdAsync(filePath, storyId);
+            ui.ShowInfo($"  Story [{storyId}] {title} → {Path.GetFileName(filePath)}");
+        }
+
+        // Guard: at least one story must exist
+        if (!await sprints.HasEpicsAsync(activeSprint.Id))
+            throw new InvalidOperationException(
+                "File-mode sprint planning produced no epics. "
+                    + "Check sprint-status.yaml for 'epic-*' keys."
+            );
+
+        return activeSprint;
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    private async Task RunSprintPlanningSkillAsync(string targetYamlPath, CancellationToken ct)
+    {
+        var prompt = $"""
+            You are the Sprint Planner. Create a BMAD sprint plan.
+
+            Planning artifacts are in: {config.PlanningArtifactsPath}
+            Read epics.md (or prd.md if epics.md is absent) and architecture.md.
+
+            Write the sprint plan to: {targetYamlPath}
+
+            The sprint-status.yaml must follow this structure:
+              story_location: ./stories
+
+              development_status:
+                epic-1: backlog
+                1-1-first-story: backlog
+                1-2-second-story: backlog
+                epic-2: backlog
+                2-1-another-story: backlog
+
+            Epic keys start with 'epic-'. Story keys follow the pattern <epic-number>-<story-number>-<slug>.
+            """;
+
+        await runner.RunAsync(
+            factory.ForScrumMaster(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+            prompt,
+            "Sprint Planner (file mode)",
+            ct
+        );
+    }
+
+    private async Task RunCreateStorySkillAsync(
+        string storyKey,
+        string targetFilePath,
+        CancellationToken ct
+    )
+    {
+        var prompt = $"""
+            You are the Story Creator. Create a BMAD story file.
+
+            Story key: {storyKey}
+            Target file path: {targetFilePath}
+            Planning artifacts: {config.PlanningArtifactsPath}
+
+            1. Read the epic breakdown from epics.md (or prd.md if absent) in the planning artifacts.
+            2. Find the story matching key '{storyKey}'.
+            3. Create a story .md file at: {targetFilePath}
+               following the BMAD story template with these sections:
+               - # <Story Title> (H1)
+               - Status: ready-for-dev
+               - ## Story (description)
+               - ## Acceptance Criteria
+               - ## Dev Notes
+               - ## Dev Agent Record
+            """;
+
+        await runner.RunAsync(
+            factory.ForStoryRefiner(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+            prompt,
+            $"Story Creator — {storyKey}",
+            ct
+        );
+    }
+
+    /// <summary>
+    /// Infers the SQLite epic ID for a story key.
+    /// Story keys follow the pattern <epic-index>-<story-index>-<slug>.
+    /// We try to match the first segment to an epic key ("epic-1", "epic-<n>", etc.)
+    /// and fall back to <paramref name="fallbackEpicId"/> if no match is found.
+    /// </summary>
+    private static long InferEpicId(
+        string storyKey,
+        Dictionary<string, long> epicKeyToId,
+        long fallbackEpicId
+    )
+    {
+        // Try to extract the epic index from "1-2-slug" → "1" → look for "epic-1"
+        var parts = storyKey.Split('-');
+        if (parts.Length >= 2 && long.TryParse(parts[0], out var epicIndex))
+        {
+            var candidate = $"epic-{epicIndex}";
+            if (epicKeyToId.TryGetValue(candidate, out var matched))
+                return matched;
+        }
+        return fallbackEpicId;
+    }
+
+    /// <summary>Converts a kebab-case YAML key to a human-readable name.</summary>
+    internal static string ToHumanName(string key)
+    {
+        // "epic-1" → "Epic 1", "epic-auth-service" → "Epic Auth Service"
+        var words = key.Split('-').Select(w => char.ToUpperInvariant(w[0]) + w[1..]);
+        return string.Join(' ', words);
     }
 
     private string BuildPlanningPrompt(Sprint sprint, PlanningArtifacts artifacts)

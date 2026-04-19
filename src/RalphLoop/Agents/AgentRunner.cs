@@ -89,11 +89,27 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
                 case AssistantMessageEvent msg:
                     responseBuilder.Append(msg.Data.Content);
                     ui.ShowAgentOutput(agentLabel, msg.Data.Content);
-                    tokensUsed += (long)(msg.Data.OutputTokens ?? 0);
+                    // Note: token counting is handled by AssistantUsageEvent below
+                    break;
+
+                case AssistantUsageEvent usage:
+                    tokensUsed +=
+                        (long)(usage.Data.InputTokens ?? 0) + (long)(usage.Data.OutputTokens ?? 0);
+                    break;
+
+                case SessionCompactionStartEvent:
+                    ui.ShowInfo($"[{agentLabel}] Context compaction started.");
+                    break;
+
+                case SessionCompactionCompleteEvent compact:
+                    ui.ShowInfo(
+                        $"[{agentLabel}] Context compaction complete: "
+                            + $"{compact.Data.PreCompactionTokens} → {compact.Data.PostCompactionTokens} tokens "
+                            + $"({(compact.Data.CompactionTokensUsed != null ? (int)(compact.Data.CompactionTokensUsed.Input + compact.Data.CompactionTokensUsed.Output) : 0)} tokens used)."
+                    );
                     break;
 
                 case ToolExecutionCompleteEvent:
-                    // Tool completions tracked via OutputTokens on AssistantMessageEvent
                     break;
 
                 case SessionIdleEvent:
@@ -114,6 +130,143 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
         await session.SendAsync(new MessageOptions { Prompt = prompt });
 
         // Wait for idle or cancellation (30-minute hard timeout)
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromMinutes(30));
+        await done.Task.WaitAsync(cts.Token);
+
+        var response = responseBuilder.ToString();
+        runLogger.LogAgentOutput(agentLabel, tokensUsed, response);
+        return new AgentResult(response, tokensUsed);
+    }
+
+    /// <summary>
+    /// Sends a prompt with an attached file to a new session and waits for idle.
+    /// The file is delivered as a <see cref="UserMessageDataAttachmentsItemFile"/> attachment,
+    /// avoiding an extra tool-call round-trip for reading the file.
+    /// </summary>
+    public async Task<AgentResult> RunWithAttachmentAsync(
+        SessionConfig config,
+        string prompt,
+        string attachmentFilePath,
+        string agentLabel,
+        CancellationToken ct = default
+    )
+    {
+        Exception? lastException = null;
+
+        ui.ShowAgentIntro(agentLabel, config.Model);
+
+        for (int attempt = 1; attempt <= MaxRetries; attempt++)
+        {
+            if (attempt > 1)
+            {
+                var delay = RetryBaseDelay * Math.Pow(2, attempt - 2);
+                ui.ShowWarning(
+                    $"[{agentLabel}] Retrying (attempt {attempt}/{MaxRetries}) after {delay.TotalSeconds}s..."
+                );
+                await Task.Delay(delay, ct);
+            }
+
+            try
+            {
+                var result = await RunOnceWithAttachmentAsync(
+                    config,
+                    prompt,
+                    attachmentFilePath,
+                    agentLabel,
+                    ct
+                );
+                ui.ShowAgentTokenSummary(agentLabel, result.TokensUsed);
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                ui.ShowWarning(
+                    $"[{agentLabel}] Session error (attempt {attempt}/{MaxRetries}): {ex.Message}"
+                );
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"[{agentLabel}] Failed after {MaxRetries} attempts.",
+            lastException
+        );
+    }
+
+    private async Task<AgentResult> RunOnceWithAttachmentAsync(
+        SessionConfig config,
+        string prompt,
+        string attachmentFilePath,
+        string agentLabel,
+        CancellationToken ct
+    )
+    {
+        runLogger.LogAgentInput(agentLabel, config.Model, prompt);
+
+        await using var session = await client.CreateSessionAsync(config);
+
+        var responseBuilder = new System.Text.StringBuilder();
+        long tokensUsed = 0;
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        using var _ = session.On(evt =>
+        {
+            switch (evt)
+            {
+                case AssistantMessageEvent msg:
+                    responseBuilder.Append(msg.Data.Content);
+                    ui.ShowAgentOutput(agentLabel, msg.Data.Content);
+                    break;
+
+                case AssistantUsageEvent usage:
+                    tokensUsed +=
+                        (long)(usage.Data.InputTokens ?? 0) + (long)(usage.Data.OutputTokens ?? 0);
+                    break;
+
+                case SessionCompactionStartEvent:
+                    ui.ShowInfo($"[{agentLabel}] Context compaction started.");
+                    break;
+
+                case SessionCompactionCompleteEvent compact:
+                    ui.ShowInfo(
+                        $"[{agentLabel}] Context compaction complete: "
+                            + $"{compact.Data.PreCompactionTokens} → {compact.Data.PostCompactionTokens} tokens "
+                            + $"({(compact.Data.CompactionTokensUsed != null ? (int)(compact.Data.CompactionTokensUsed.Input + compact.Data.CompactionTokensUsed.Output) : 0)} tokens used)."
+                    );
+                    break;
+
+                case ToolExecutionCompleteEvent:
+                    break;
+
+                case SessionIdleEvent:
+                    if (!done.Task.IsCompleted)
+                        done.SetResult();
+                    break;
+
+                case SessionErrorEvent err:
+                    done.TrySetException(
+                        new InvalidOperationException(
+                            $"[{agentLabel}] Session error: {err.Data.Message}"
+                        )
+                    );
+                    break;
+            }
+        });
+
+        var attachmentItem = new UserMessageDataAttachmentsItemFile
+        {
+            Path = attachmentFilePath,
+            DisplayName = System.IO.Path.GetFileName(attachmentFilePath),
+        };
+        await session.SendAsync(
+            new MessageOptions { Prompt = prompt, Attachments = [attachmentItem] }
+        );
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(TimeSpan.FromMinutes(30));
         await done.Task.WaitAsync(cts.Token);

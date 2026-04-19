@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using GitHub.Copilot.SDK;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -6,6 +6,7 @@ using RalphLoop.Agents;
 using RalphLoop.Build;
 using RalphLoop.Config;
 using RalphLoop.Data;
+using RalphLoop.Data.FileStore;
 using RalphLoop.Data.Repositories;
 using RalphLoop.Git;
 using RalphLoop.Loop;
@@ -125,6 +126,7 @@ services.AddSingleton(_ => new LedgerDb(config.LedgerDbPath));
 services.AddSingleton<SprintRepository>();
 services.AddSingleton<EpicRepository>();
 services.AddSingleton<StoryRepository>();
+services.AddSingleton<FileStoreContext>();
 
 // Git + build
 services.AddSingleton(_ => new GitManager(config.ProjectPath, config.Git.TimeoutSeconds));

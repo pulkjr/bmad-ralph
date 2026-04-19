@@ -14,6 +14,25 @@ public class RalphLoopConfig
     public bool DebugLog { get; set; } = false;
 
     /// <summary>
+    /// Controls where story content (FRs, NFRs, ACs) is stored.
+    /// "sqlite" (default): all story content lives in ledger.db.
+    /// "file": story content lives in BMAD story .md files and sprint-status.yaml;
+    ///         ledger.db is used only for the operational ledger (rounds, tokens, events).
+    /// </summary>
+    public string StorageMode { get; set; } = StorageModes.Sqlite;
+
+    /// <summary>
+    /// Maximum number of QA failure entries to include in developer prompts.
+    /// Older entries are dropped with an omitted-count note to control context size.
+    /// </summary>
+    public int MaxFailureHistoryEntries { get; set; } = 2;
+
+    /// <summary>
+    /// Compaction thresholds for infinite sessions.
+    /// </summary>
+    public CompactionConfig Compaction { get; set; } = new();
+
+    /// <summary>
     /// Overrides the default app run command heuristic.
     /// If empty, the command is auto-detected from project type.
     /// </summary>
@@ -25,6 +44,29 @@ public class RalphLoopConfig
 
     [JsonIgnore]
     public string PlanningArtifactsPath { get; set; } = "";
+
+    /// <summary>
+    /// Path where BMAD implementation artifacts live (sprint-status.yaml, story .md files).
+    /// Resolved from _bmad/bmm/config.yaml (implementation_artifacts key).
+    /// Falls back to PlanningArtifactsPath if not configured.
+    /// </summary>
+    [JsonIgnore]
+    public string ImplementationArtifactsPath { get; set; } = "";
+}
+
+public static class StorageModes
+{
+    public const string Sqlite = "sqlite";
+    public const string File = "file";
+}
+
+public class CompactionConfig
+{
+    /// <summary>Background compaction starts at this fraction of the context window (default 70%).</summary>
+    public double BackgroundThreshold { get; set; } = 0.70;
+
+    /// <summary>Blocking compaction starts at this fraction of the context window (default 88%).</summary>
+    public double BlockingThreshold { get; set; } = 0.88;
 }
 
 public class SkillDirectoriesConfig

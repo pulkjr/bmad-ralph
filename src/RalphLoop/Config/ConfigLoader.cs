@@ -58,6 +58,12 @@ public static class ConfigLoader
         // Resolve BMAD planning artifacts path from _bmad/bmm/config.yaml
         config.PlanningArtifactsPath = ResolvePlanningArtifacts(config.ProjectPath);
 
+        // Resolve BMAD implementation artifacts path (where sprint-status.yaml and story files live)
+        config.ImplementationArtifactsPath = ResolveImplementationArtifacts(
+            config.ProjectPath,
+            config.PlanningArtifactsPath
+        );
+
         return config;
     }
 
@@ -97,6 +103,46 @@ public static class ConfigLoader
         }
 
         return Path.GetFullPath(Path.Combine(projectPath, "_bmad-output"));
+    }
+
+    /// <summary>
+    /// Reads _bmad/bmm/config.yaml to find the implementation_artifacts path.
+    /// Falls back to planningArtifactsPath if not configured.
+    /// </summary>
+    private static string ResolveImplementationArtifacts(
+        string projectPath,
+        string planningArtifactsPath
+    )
+    {
+        var bmadConfig = Path.Combine(projectPath, "_bmad", "bmm", "config.yaml");
+        if (File.Exists(bmadConfig))
+        {
+            try
+            {
+                var deserializer = new DeserializerBuilder()
+                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                    .IgnoreUnmatchedProperties()
+                    .Build();
+                var yaml = File.ReadAllText(bmadConfig);
+                var dict = deserializer.Deserialize<Dictionary<string, object>>(yaml);
+                if (dict.TryGetValue("implementation_artifacts", out var ia) && ia is string iaStr)
+                {
+                    var resolved = iaStr.Replace("{project-root}", projectPath).Trim();
+                    if (!Path.IsPathRooted(resolved))
+                        resolved = Path.Combine(projectPath, resolved);
+                    return Path.GetFullPath(resolved);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to parse BMAD config at '{bmadConfig}': {ex.Message}",
+                    ex
+                );
+            }
+        }
+
+        return planningArtifactsPath;
     }
 
     private static string ResolvePath(string path)

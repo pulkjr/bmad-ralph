@@ -118,8 +118,8 @@ public class RalphLoopOrchestrator(
         }
         else
         {
-            // Phase 3: story-by-story development loop (review notes give dev context from Phase 2)
-            await phase3.RunAsync(startedEpic, storyList, reviewResult.ReviewNotes, ct);
+            // Phase 3: story-by-story development loop (review summary gives dev context from Phase 2)
+            await phase3.RunAsync(startedEpic, storyList, reviewResult.ReviewSummary, ct);
         }
 
         // Phase 4: epic completion reviews

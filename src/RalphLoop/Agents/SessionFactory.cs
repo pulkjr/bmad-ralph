@@ -242,6 +242,11 @@ public class SessionFactory(RalphLoopConfig config)
             OnPermissionRequest = onPermission,
             WorkingDirectory = config.ProjectPath,
             EnableConfigDiscovery = true,
+            InfiniteSessions = new InfiniteSessionConfig
+            {
+                BackgroundCompactionThreshold = config.Compaction.BackgroundThreshold,
+                BufferExhaustionThreshold = config.Compaction.BlockingThreshold,
+            },
         };
 
         // Only set a system message if there's deployment-specific content to add.
