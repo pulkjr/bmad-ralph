@@ -693,4 +693,67 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         cmd.Parameters.AddWithValue("@id", epicId);
         return (long)(await cmd.ExecuteScalarAsync())!;
     }
+
+    // ── StoryRepository — file-path methods ───────────────────────────────────
+
+    [Fact]
+    public async Task OpenAsync_StoriesTable_HasFilePathColumn()
+    {
+        await using var cmd = _db.Connection.CreateCommand();
+        cmd.CommandText = "PRAGMA table_info(stories)";
+        await using var reader = await cmd.ExecuteReaderAsync();
+
+        var columns = new List<string>();
+        while (await reader.ReadAsync())
+            columns.Add(reader.GetString(1)); // column 1 = name
+
+        Assert.Contains("file_path", columns);
+    }
+
+    [Fact]
+    public async Task InsertFileStoryAsync_RoundTrips()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+
+        await repo.InsertFileStoryAsync(
+            epicId,
+            "Auth Login",
+            "stories/1-1-login.md",
+            0,
+            "Short desc"
+        );
+
+        var stories = await repo.GetByEpicAsync(epicId);
+        Assert.Single(stories);
+        Assert.Equal("Auth Login", stories[0].Name);
+        Assert.Equal("stories/1-1-login.md", stories[0].FilePath);
+        Assert.Equal("Short desc", stories[0].Description);
+    }
+
+    [Fact]
+    public async Task InsertFileStoryAsync_NullShortDescription_DefaultsToEmpty()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+
+        await repo.InsertFileStoryAsync(epicId, "Story", "stories/1-2-story.md", 1);
+
+        var stories = await repo.GetByEpicAsync(epicId);
+        Assert.Single(stories);
+        Assert.Equal(string.Empty, stories[0].Description);
+    }
+
+    [Fact]
+    public async Task UpdateFilePathAsync_UpdatesFilePath()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+        var id = await repo.InsertFileStoryAsync(epicId, "Story", "old/path.md", 0);
+
+        await repo.UpdateFilePathAsync(id, "new/path.md");
+
+        var stories = await repo.GetByEpicAsync(epicId);
+        Assert.Equal("new/path.md", stories[0].FilePath);
+    }
 }

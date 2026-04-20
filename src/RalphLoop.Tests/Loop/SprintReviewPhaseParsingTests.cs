@@ -380,4 +380,77 @@ public class SprintReviewPhaseParsingTests
 
         Assert.False(SprintReviewPhase.IsReadinessConcernDirectlyActionable(response));
     }
+
+    // ── BuildReviewSummary ────────────────────────────────────────────────────
+
+    [Fact]
+    public void BuildReviewSummary_IncludesOutcomeAndCounts()
+    {
+        var voteResult = SprintReviewPhase.ParseConfidenceVoteResult(
+            """
+            VOTE: YES — Looks good
+            VOTE: NO (MINOR) — Missing docstring | FIX: Add it
+            CONFIDENCE: PASSED — minor issues only
+            """
+        );
+
+        var summary = SprintReviewPhase.BuildReviewSummary(voteResult, "Auth Epic", []);
+
+        Assert.Contains("Auth Epic", summary);
+        Assert.Contains("1 YES", summary);
+        Assert.Contains("1 NO(MINOR)", summary);
+    }
+
+    [Fact]
+    public void BuildReviewSummary_MajorIssues_AppearsInOutput()
+    {
+        var voteResult = SprintReviewPhase.ParseConfidenceVoteResult(
+            """
+            VOTE: NO (MAJOR) — Critical security flaw | FIX: Validate input
+            CONFIDENCE: FAILED (MAJOR) — one major issue
+            """
+        );
+
+        var summary = SprintReviewPhase.BuildReviewSummary(voteResult, "Sec Epic", []);
+
+        Assert.Contains("MAJOR", summary);
+        Assert.Contains("Critical security flaw", summary);
+    }
+
+    [Fact]
+    public void BuildReviewSummary_StoryNamesIncluded()
+    {
+        var voteResult = SprintReviewPhase.ParseConfidenceVoteResult(
+            "VOTE: YES — ok\nCONFIDENCE: PASSED"
+        );
+        var stories = new List<RalphLoop.Data.Models.Story>
+        {
+            new() { Id = 1, Name = "Story Alpha" },
+            new() { Id = 2, Name = "Story Beta" },
+        };
+
+        var summary = SprintReviewPhase.BuildReviewSummary(voteResult, "Epic", stories);
+
+        Assert.Contains("Story Alpha", summary);
+        Assert.Contains("Story Beta", summary);
+    }
+
+    [Fact]
+    public void BuildReviewSummary_LongDetailTruncatedAt120Chars()
+    {
+        var longDetail = new string('x', 150);
+        var voteResult = SprintReviewPhase.ParseConfidenceVoteResult(
+            $"VOTE: NO (MINOR) — {longDetail} | FIX: fix\nCONFIDENCE: FAILED (MINOR)"
+        );
+
+        var summary = SprintReviewPhase.BuildReviewSummary(voteResult, "Epic", []);
+
+        // Summary detail for this vote should be truncated
+        var detailLine = summary
+            .Split('\n')
+            .FirstOrDefault(l => l.Contains('[') && l.Contains("MINOR]"));
+        Assert.NotNull(detailLine);
+        // 120 chars of content + "…"
+        Assert.Contains("…", detailLine);
+    }
 }

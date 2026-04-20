@@ -87,6 +87,37 @@ public sealed class ProgramFunctionalTests : IDisposable
         );
     }
 
+    // ── Invalid project path ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task NonExistentProjectPath_ExitsOne()
+    {
+        var (exitCode, stdout, _) = await RunAsync("/does/not/exist/anywhere");
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("not found", stdout, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Malformed config ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task MalformedConfig_ExitsOne_WithMessage()
+    {
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempDir, "ralph-loop.json"),
+            "{ this is not valid JSON !!! }"
+        );
+
+        var (exitCode, stdout, _) = await RunAsync(_tempDir);
+
+        Assert.Equal(1, exitCode);
+        Assert.True(
+            stdout.Contains("ralph-loop.json", StringComparison.OrdinalIgnoreCase)
+                || stdout.Contains("Failed", StringComparison.OrdinalIgnoreCase),
+            $"Expected config error message in stdout but got: {stdout}"
+        );
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private async Task<(int ExitCode, string Stdout, string Stderr)> RunAsync(

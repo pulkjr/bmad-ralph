@@ -25,4 +25,63 @@ public class StoryLoopPhaseResumeTests
         var step = StoryLoopPhase.DetermineResumeStep(status, latestEventType);
         Assert.Equal((StoryLoopPhase.StoryResumeStep)expected, step);
     }
+
+    // ── ExtractVerdict ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ExtractVerdict_WithVerdictLine_ReturnsValueAfterColon()
+    {
+        var response = "Some analysis.\nVERDICT: PASS — all tests green";
+
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+
+        Assert.Equal("PASS — all tests green", verdict);
+    }
+
+    [Fact]
+    public void ExtractVerdict_NoVerdictLine_ReturnsNull()
+    {
+        var response = "Everything looks fine. No issues.";
+
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+
+        Assert.Null(verdict);
+    }
+
+    [Fact]
+    public void ExtractVerdict_MultipleVerdictLines_ReturnsLast()
+    {
+        var response = """
+            VERDICT: FAIL — first attempt
+            Fixed the issues.
+            VERDICT: PASS — resolved
+            """;
+
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+
+        Assert.Equal("PASS — resolved", verdict);
+    }
+
+    [Fact]
+    public void ExtractVerdict_BlockquotePrefixedLine_ReturnsNull()
+    {
+        // ExtractVerdict only strips whitespace — it does not handle "> VERDICT:" blockquote
+        // prefix emitted by the Copilot SDK (unlike ParseConfidenceVoteResult which has
+        // a dedicated regex). Documenting actual behaviour.
+        var response = "> VERDICT: RESOLVED — all findings addressed";
+
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+
+        Assert.Null(verdict);
+    }
+
+    [Fact]
+    public void ExtractVerdict_CaseInsensitive_ReturnsValue()
+    {
+        var response = "verdict: pass — lowercase verdict";
+
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+
+        Assert.Equal("pass — lowercase verdict", verdict);
+    }
 }

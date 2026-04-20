@@ -212,6 +212,129 @@ public sealed class ConfigLoaderTests : IDisposable
         Assert.Equal(Path.GetFullPath(_tempDir), config.ProjectPath);
     }
 
+    // ── StorageMode ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Load_StorageMode_DefaultsToSqlite()
+    {
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(RalphLoop.Config.StorageModes.Sqlite, config.StorageMode);
+    }
+
+    [Fact]
+    public void Load_StorageMode_ParsesFileModeFromJson()
+    {
+        WriteConfig("""{ "storageMode": "file" }""");
+
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(RalphLoop.Config.StorageModes.File, config.StorageMode);
+    }
+
+    // ── MaxFailureHistoryEntries ───────────────────────────────────────────────
+
+    [Fact]
+    public void Load_MaxFailureHistoryEntries_DefaultsToTwo()
+    {
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(2, config.MaxFailureHistoryEntries);
+    }
+
+    [Fact]
+    public void Load_MaxFailureHistoryEntries_ParsesFromJson()
+    {
+        WriteConfig("""{ "maxFailureHistoryEntries": 5 }""");
+
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(5, config.MaxFailureHistoryEntries);
+    }
+
+    // ── CompactionConfig ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void Load_Compaction_DefaultsPresent()
+    {
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(0.70, config.Compaction.BackgroundThreshold);
+        Assert.Equal(0.88, config.Compaction.BlockingThreshold);
+    }
+
+    [Fact]
+    public void Load_Compaction_ParsesCustomThresholdsFromJson()
+    {
+        WriteConfig(
+            """{ "compaction": { "backgroundThreshold": 0.60, "blockingThreshold": 0.80 } }"""
+        );
+
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(0.60, config.Compaction.BackgroundThreshold);
+        Assert.Equal(0.80, config.Compaction.BlockingThreshold);
+    }
+
+    // ── ResolveImplementationArtifacts ────────────────────────────────────────
+
+    [Fact]
+    public void Load_ImplementationArtifactsPath_FallsBackToPlanningArtifacts_WhenKeyAbsent()
+    {
+        // No BMAD config at all — both paths should fall back to _bmad-output/
+        var config = ConfigLoader.Load(_tempDir);
+
+        Assert.Equal(config.PlanningArtifactsPath, config.ImplementationArtifactsPath);
+    }
+
+    [Fact]
+    public void Load_ImplementationArtifactsPath_ResolvesFromBmadYaml()
+    {
+        var bmadDir = Path.Combine(_tempDir, "_bmad", "bmm");
+        Directory.CreateDirectory(bmadDir);
+        File.WriteAllText(
+            Path.Combine(bmadDir, "config.yaml"),
+            "implementation_artifacts: impl-output\n"
+        );
+
+        var config = ConfigLoader.Load(_tempDir);
+
+        var expected = Path.GetFullPath(Path.Combine(_tempDir, "impl-output"));
+        Assert.Equal(expected, config.ImplementationArtifactsPath);
+    }
+
+    [Fact]
+    public void Load_ImplementationArtifactsPath_SupportsProjectRootPlaceholder()
+    {
+        var bmadDir = Path.Combine(_tempDir, "_bmad", "bmm");
+        Directory.CreateDirectory(bmadDir);
+        File.WriteAllText(
+            Path.Combine(bmadDir, "config.yaml"),
+            "implementation_artifacts: \"{project-root}/sprint-files\"\n"
+        );
+
+        var config = ConfigLoader.Load(_tempDir);
+
+        var expected = Path.GetFullPath(Path.Combine(_tempDir, "sprint-files"));
+        Assert.Equal(expected, config.ImplementationArtifactsPath);
+    }
+
+    [Fact]
+    public void Load_ImplementationArtifactsPath_FallsBackToPlanningPath_WhenKeyMissingFromYaml()
+    {
+        var bmadDir = Path.Combine(_tempDir, "_bmad", "bmm");
+        Directory.CreateDirectory(bmadDir);
+        File.WriteAllText(
+            Path.Combine(bmadDir, "config.yaml"),
+            "planning_artifacts: custom-planning\n"
+        );
+
+        var config = ConfigLoader.Load(_tempDir);
+
+        // implementation_artifacts key absent → should equal planning artifacts path
+        Assert.Equal(config.PlanningArtifactsPath, config.ImplementationArtifactsPath);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void WriteConfig(string json) =>
