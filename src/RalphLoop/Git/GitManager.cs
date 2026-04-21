@@ -24,6 +24,14 @@ public class GitManager(string projectPath, int timeoutSeconds = 60)
 
     public async Task CreateEpicBranchAsync(string branchName)
     {
+        if (string.IsNullOrWhiteSpace(branchName))
+            throw new ArgumentException(
+                "A non-empty branch name is required. "
+                    + "The epic may have been imported without a branch name — "
+                    + "re-run ralph-loop and confirm the proposed branch name at the prompt.",
+                nameof(branchName)
+            );
+
         // Checkout existing branch if it exists; create it only if it doesn't.
         // Each argument is a separate entry in ArgumentList — shell metacharacters in
         // branchName are treated as literals, not interpreted by the shell.
@@ -151,6 +159,23 @@ public class GitManager(string projectPath, int timeoutSeconds = 60)
 
             Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
             """;
+    }
+
+    /// <summary>
+    /// Converts a raw string into a valid git branch name slug.
+    /// Lowercases, replaces spaces and slashes with dashes, strips invalid
+    /// git ref characters, collapses consecutive dashes, and trims leading/trailing
+    /// dashes and dots. Falls back to <c>"epic-branch"</c> if the result is empty.
+    /// </summary>
+    public static string SlugifyBranchName(string name)
+    {
+        var slug = (name ?? string.Empty).ToLowerInvariant().Replace(' ', '-').Replace('/', '-');
+        // Remove git-invalid ref chars: ~, ^, :, ?, *, [, \
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[~^:?*\[\\]", "");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\.{2,}", "-");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"-{2,}", "-");
+        slug = slug.Trim('-', '.');
+        return string.IsNullOrEmpty(slug) ? "epic-branch" : slug;
     }
 
     private static async Task<ProcessResult> RunWithStdinAsync(

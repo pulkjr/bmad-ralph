@@ -5,6 +5,7 @@ using RalphLoop.Data;
 using RalphLoop.Data.FileStore;
 using RalphLoop.Data.Models;
 using RalphLoop.Data.Repositories;
+using RalphLoop.Git;
 using RalphLoop.UI;
 
 namespace RalphLoop.Loop.Phases;
@@ -191,6 +192,16 @@ public class SprintPlanningPhase(
             var hasNonDone = epicHasNonDoneStory.TryGetValue(epicEntry.Key, out var nd) && nd;
             var epicStatus = MapYamlStatusToEpicStatus(epicEntry.Status, hasNonDone);
             var epicId = await epics.InsertAsync(activeSprint.Id, epicName, "", epicStatus);
+
+            // For in_progress epics Phase 2 (SprintReviewPhase) will be skipped, which
+            // is normally where branch_name gets set via MarkStartedAsync. Set it here
+            // so Phase 3 can create the git branch without hitting an empty-name error.
+            if (epicStatus == EpicStatus.InProgress)
+            {
+                var branchName = GitManager.SlugifyBranchName($"epic/{epicName}");
+                await epics.MarkStartedAsync(epicId, branchName);
+            }
+
             epicKeyToId[epicEntry.Key] = epicId;
             ui.ShowInfo($"  Epic: [{epicId}] {epicName} [{epicStatus}]");
         }

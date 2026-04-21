@@ -145,6 +145,24 @@ public sealed class GitManagerInjectionTests : IDisposable
         Assert.Contains("[Intent]:", msg);
     }
 
+    // ── Empty branch name — must be rejected before hitting git ─────────────
+
+    [Fact]
+    public async Task CreateEpicBranchAsync_NullBranchName_ThrowsArgumentException()
+    {
+        var sut = new GitManager(_repoPath);
+
+        // A null branch name must be caught before git is invoked (no sentinel created)
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            sut.CreateEpicBranchAsync(null!)
+        );
+        Assert.False(
+            File.Exists(_sentinelPath),
+            "ArgumentException must be thrown before git runs, so no sentinel is created"
+        );
+        Assert.Contains("branch name", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void RunGit(string args)

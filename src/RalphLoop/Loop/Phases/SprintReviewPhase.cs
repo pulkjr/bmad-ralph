@@ -5,6 +5,7 @@ using RalphLoop.Data;
 using RalphLoop.Data.FileStore;
 using RalphLoop.Data.Models;
 using RalphLoop.Data.Repositories;
+using RalphLoop.Git;
 using RalphLoop.UI;
 
 namespace RalphLoop.Loop.Phases;
@@ -440,16 +441,7 @@ public class SprintReviewPhase(
         return sb.ToString().Trim();
     }
 
-    private static string SlugifyBranchName(string name)
-    {
-        var slug = name.ToLowerInvariant().Replace(' ', '-').Replace('/', '-');
-        // Remove git-invalid ref chars: ~, ^, :, ?, *, [, \, .., @{, consecutive dots
-        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[~^:?*\[\\]", "");
-        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\.{2,}", "-");
-        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"-{2,}", "-");
-        slug = slug.Trim('-', '.');
-        return string.IsNullOrEmpty(slug) ? "epic-branch" : slug;
-    }
+    private static string SlugifyBranchName(string name) => GitManager.SlugifyBranchName(name);
 
     internal static string BuildMinorRefinementContext(
         ConfidenceVoteResult voteResult,

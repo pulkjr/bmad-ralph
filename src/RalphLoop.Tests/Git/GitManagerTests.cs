@@ -175,4 +175,65 @@ public class GitManagerTests
         var lines = msg.Split('\n');
         Assert.True(lines.Length >= 5, $"Expected ≥5 lines, got {lines.Length}");
     }
+
+    // ── SlugifyBranchName ─────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("epic/Epic 5", "epic-epic-5")]
+    [InlineData("epic/My Feature", "epic-my-feature")]
+    [InlineData("epic/Auth Service", "epic-auth-service")]
+    public void SlugifyBranchName_EpicSlashName_ProducesKebabSlug(string input, string expected)
+    {
+        Assert.Equal(expected, GitManager.SlugifyBranchName(input));
+    }
+
+    [Theory]
+    [InlineData("has~tilde", "hastilde")]
+    [InlineData("has^caret", "hascaret")]
+    [InlineData("has:colon", "hascolon")]
+    [InlineData("has?question", "hasquestion")]
+    [InlineData("has*star", "hasstar")]
+    public void SlugifyBranchName_InvalidGitRefChars_Removed(string input, string expected)
+    {
+        Assert.Equal(expected, GitManager.SlugifyBranchName(input));
+    }
+
+    [Theory]
+    [InlineData("  ")]
+    [InlineData("")]
+    [InlineData("~~~")]
+    [InlineData("^^^")]
+    public void SlugifyBranchName_InputCollapsesToEmpty_ReturnsFallback(string input)
+    {
+        Assert.Equal("epic-branch", GitManager.SlugifyBranchName(input));
+    }
+
+    [Fact]
+    public void SlugifyBranchName_ConsecutiveDashes_Collapsed()
+    {
+        Assert.Equal("epic-5", GitManager.SlugifyBranchName("epic--5"));
+    }
+
+    [Fact]
+    public void SlugifyBranchName_LeadingAndTrailingDashOrDot_Trimmed()
+    {
+        Assert.Equal("epic-5", GitManager.SlugifyBranchName("-epic-5-"));
+    }
+
+    // ── CreateEpicBranchAsync — empty branch name guard ───────────────────────
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateEpicBranchAsync_EmptyOrWhitespaceBranchName_ThrowsArgumentException(
+        string branchName
+    )
+    {
+        var sut = new GitManager(Path.GetTempPath());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            sut.CreateEpicBranchAsync(branchName)
+        );
+        Assert.Contains("branch name", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -3,6 +3,7 @@ using RalphLoop.Config;
 using RalphLoop.Data;
 using RalphLoop.Data.Models;
 using RalphLoop.Data.Repositories;
+using RalphLoop.Git;
 using RalphLoop.Loop.Phases;
 using RalphLoop.UI;
 
@@ -97,6 +98,35 @@ public class RalphLoopOrchestrator(
             // already-approved epic wastes cost and violates the one-time gate principle.
             ui.ShowPhase("Phase 2", $"Sprint Review — Epic: {epic.Name}");
             ui.ShowInfo("Epic is already in-progress — skipping sprint review (already passed).");
+
+            // Guard: ensure the epic has a branch name before any AI work starts.
+            // This can happen when the epic was imported from sprint-status.yaml before
+            // this fix was applied (branch_name defaults to '' in the DB).
+            if (string.IsNullOrWhiteSpace(epic.BranchName))
+            {
+                var proposedBranch = GitManager.SlugifyBranchName($"epic/{epic.Name}");
+                ui.ShowWarning(
+                    $"Epic '{epic.Name}' has no branch name stored (imported before fix)."
+                );
+                var confirmed = ui.Confirm(
+                    $"Begin development of '{epic.Name}' on branch '{proposedBranch}'?",
+                    defaultValue: true
+                );
+                if (!confirmed)
+                {
+                    ui.ShowInfo(
+                        "Development cancelled. Please switch to the correct branch and re-run ralph-loop."
+                    );
+                    throw new OperationCanceledException(
+                        $"User declined branch '{proposedBranch}' for epic '{epic.Name}'."
+                    );
+                }
+
+                await epics.MarkStartedAsync(epic.Id, proposedBranch);
+                epic.BranchName = proposedBranch;
+                ui.ShowSuccess($"Branch '{proposedBranch}' confirmed.");
+            }
+
             ui.ShowInfo("Resuming from Phase 3: story loop with remaining incomplete stories.");
             reviewResult = new SprintReviewResult(epic, string.Empty);
         }
