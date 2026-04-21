@@ -756,4 +756,116 @@ public class RepositoryIntegrationTests : IAsyncLifetime
         var stories = await repo.GetByEpicAsync(epicId);
         Assert.Equal("new/path.md", stories[0].FilePath);
     }
+
+    // ── Status param: EpicRepository.InsertAsync ─────────────────────────────
+
+    [Fact]
+    public async Task Epic_InsertAsync_DefaultStatus_IsPending()
+    {
+        var sprintRepo = new SprintRepository(_db);
+        var epicRepo = new EpicRepository(_db);
+        var sprintId = await sprintRepo.InsertAsync("S");
+
+        await epicRepo.InsertAsync(sprintId, "E", "");
+
+        var epics = await epicRepo.GetBySprintAsync(sprintId);
+        Assert.Equal(EpicStatus.Pending, epics[0].Status);
+    }
+
+    [Fact]
+    public async Task Epic_InsertAsync_ExplicitComplete_StoresComplete()
+    {
+        var sprintRepo = new SprintRepository(_db);
+        var epicRepo = new EpicRepository(_db);
+        var sprintId = await sprintRepo.InsertAsync("S");
+
+        await epicRepo.InsertAsync(sprintId, "E Done", "", EpicStatus.Complete);
+
+        var epics = await epicRepo.GetBySprintAsync(sprintId);
+        Assert.Equal(EpicStatus.Complete, epics[0].Status);
+    }
+
+    [Fact]
+    public async Task Epic_InsertAsync_ExplicitInProgress_StoresInProgress()
+    {
+        var sprintRepo = new SprintRepository(_db);
+        var epicRepo = new EpicRepository(_db);
+        var sprintId = await sprintRepo.InsertAsync("S");
+
+        await epicRepo.InsertAsync(sprintId, "E In-Progress", "", EpicStatus.InProgress);
+
+        var epics = await epicRepo.GetBySprintAsync(sprintId);
+        Assert.Equal(EpicStatus.InProgress, epics[0].Status);
+    }
+
+    [Fact]
+    public async Task Epic_InsertAsync_CompleteEpic_ExcludedFromPendingQuery()
+    {
+        // Epics inserted as 'complete' should not appear in GetBySprintAsync filtered to pending/in_progress.
+        var sprintRepo = new SprintRepository(_db);
+        var epicRepo = new EpicRepository(_db);
+        var sprintId = await sprintRepo.InsertAsync("S");
+
+        await epicRepo.InsertAsync(sprintId, "Complete Epic", "", EpicStatus.Complete);
+        await epicRepo.InsertAsync(sprintId, "Pending Epic", "", EpicStatus.Pending);
+
+        var pendingEpics = (await epicRepo.GetBySprintAsync(sprintId))
+            .Where(e => e.Status is EpicStatus.Pending or EpicStatus.InProgress)
+            .ToList();
+
+        Assert.Single(pendingEpics);
+        Assert.Equal("Pending Epic", pendingEpics[0].Name);
+    }
+
+    // ── Status param: StoryRepository.InsertFileStoryAsync ───────────────────
+
+    [Fact]
+    public async Task InsertFileStoryAsync_DefaultStatus_IsPending()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+
+        await repo.InsertFileStoryAsync(epicId, "Story", "path.md", 0);
+
+        var stories = await repo.GetByEpicAsync(epicId);
+        Assert.Equal(StoryStatus.Pending, stories[0].Status);
+    }
+
+    [Fact]
+    public async Task InsertFileStoryAsync_ExplicitComplete_StoresComplete()
+    {
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+
+        await repo.InsertFileStoryAsync(
+            epicId,
+            "Done Story",
+            "path.md",
+            0,
+            status: StoryStatus.Complete
+        );
+
+        var stories = await repo.GetByEpicAsync(epicId);
+        Assert.Equal(StoryStatus.Complete, stories[0].Status);
+    }
+
+    [Fact]
+    public async Task InsertFileStoryAsync_CompleteStory_FilteredOutByIncompleteQuery()
+    {
+        // The orchestrator filters with: allStories.Where(s => s.Status is not StoryStatus.Complete)
+        // This verifies that complete stories are excluded from Phase 3.
+        var (_, epicId) = await SeedSprintAndEpicAsync();
+        var repo = new StoryRepository(_db);
+
+        await repo.InsertFileStoryAsync(epicId, "Done", "done.md", 0, status: StoryStatus.Complete);
+        await repo.InsertFileStoryAsync(epicId, "Pending", "pending.md", 1);
+
+        var allStories = await repo.GetByEpicAsync(epicId);
+        var incompleteStories = allStories
+            .Where(s => s.Status is not StoryStatus.Complete)
+            .ToList();
+
+        Assert.Single(incompleteStories);
+        Assert.Equal("Pending", incompleteStories[0].Name);
+    }
 }

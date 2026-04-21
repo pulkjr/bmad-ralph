@@ -34,17 +34,23 @@ public class EpicRepository(LedgerDb db)
         return list;
     }
 
-    public async Task<long> InsertAsync(long sprintId, string name, string description)
+    public async Task<long> InsertAsync(
+        long sprintId,
+        string name,
+        string description,
+        string status = EpicStatus.Pending
+    )
     {
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO epics (sprint_id, name, description, status)
-            VALUES (@s, @n, @d, 'pending');
+            VALUES (@s, @n, @d, @st);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("@s", sprintId);
         cmd.Parameters.AddWithValue("@n", name);
         cmd.Parameters.AddWithValue("@d", description);
+        cmd.Parameters.AddWithValue("@st", status);
         return (long)(await cmd.ExecuteScalarAsync())!;
     }
 

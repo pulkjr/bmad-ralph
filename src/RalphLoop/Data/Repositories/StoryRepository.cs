@@ -46,7 +46,8 @@ public class StoryRepository(LedgerDb db)
 
     /// <summary>
     /// Inserts a story record for file-based storage mode.
-    /// Sets status to 'pending' (not 'in_progress') and stores the file path.
+    /// <paramref name="status"/> defaults to <see cref="StoryStatus.Pending"/>; pass
+    /// <see cref="StoryStatus.Complete"/> for stories that are already done in the YAML.
     /// start_time is not set — the loop sets it when the story begins.
     /// description is populated with a short snippet from the story file for
     /// party-mode review context (see StoryFileManager.ReadShortDescriptionAsync).
@@ -56,19 +57,21 @@ public class StoryRepository(LedgerDb db)
         string name,
         string filePath,
         int orderIndex,
-        string shortDescription = ""
+        string shortDescription = "",
+        string status = StoryStatus.Pending
     )
     {
         await using var cmd = db.Connection.CreateCommand();
         cmd.CommandText = """
             INSERT INTO stories (epic_id, name, description, acceptance_criteria, order_index, status, file_path)
-            VALUES (@e, @n, @d, '', @o, 'pending', @fp);
+            VALUES (@e, @n, @d, '', @o, @st, @fp);
             SELECT last_insert_rowid();
             """;
         cmd.Parameters.AddWithValue("@e", epicId);
         cmd.Parameters.AddWithValue("@n", name);
         cmd.Parameters.AddWithValue("@d", shortDescription);
         cmd.Parameters.AddWithValue("@o", orderIndex);
+        cmd.Parameters.AddWithValue("@st", status);
         cmd.Parameters.AddWithValue("@fp", filePath);
         return (long)(await cmd.ExecuteScalarAsync())!;
     }

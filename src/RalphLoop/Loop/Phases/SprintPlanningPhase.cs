@@ -179,14 +179,20 @@ public class SprintPlanningPhase(
             return activeSprint;
         }
 
-        // Step d: create epic records from YAML
+        // Step d: compute which epics have at least one non-done story (needed to derive
+        // the correct SQLite epic status before inserting).
+        var epicHasNonDoneStory = BuildEpicNonDoneMap(sprintStatus.GetStoriesOnly());
+
+        // Step d: create epic records from YAML with status derived from YAML state
         var epicKeyToId = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var epicEntry in sprintStatus.GetEpicsOnly())
         {
             var epicName = ToHumanName(epicEntry.Key);
-            var epicId = await epics.InsertAsync(activeSprint.Id, epicName, "");
+            var hasNonDone = epicHasNonDoneStory.TryGetValue(epicEntry.Key, out var nd) && nd;
+            var epicStatus = MapYamlStatusToEpicStatus(epicEntry.Status, hasNonDone);
+            var epicId = await epics.InsertAsync(activeSprint.Id, epicName, "", epicStatus);
             epicKeyToId[epicEntry.Key] = epicId;
-            ui.ShowInfo($"  Epic: [{epicId}] {epicName}");
+            ui.ShowInfo($"  Epic: [{epicId}] {epicName} [{epicStatus}]");
         }
 
         if (epicKeyToId.Count == 0)
@@ -205,11 +211,17 @@ public class SprintPlanningPhase(
         foreach (var storyEntry in sprintStatus.GetStoriesOnly())
         {
             var storyKey = storyEntry.Key;
+            var storyStatus = MapYamlStatusToStoryStatus(storyEntry.Status);
             var filePath = sprintStatus.ResolveStoryFilePath(storyKey);
 
-            // Step e.1: create story file if backlog + missing
+            // Step e.1: create story file if backlog + missing (never for done stories)
             if (
-                string.Equals(storyEntry.Status, "backlog", StringComparison.OrdinalIgnoreCase)
+                !string.Equals(
+                    storyStatus,
+                    StoryStatus.Complete,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && string.Equals(storyEntry.Status, "backlog", StringComparison.OrdinalIgnoreCase)
                 && !File.Exists(filePath)
             )
             {
@@ -224,7 +236,14 @@ public class SprintPlanningPhase(
                     );
             }
 
-            if (!File.Exists(filePath))
+            // Skip non-done stories whose file is still missing (done stories are always inserted)
+            if (
+                !string.Equals(
+                    storyStatus,
+                    StoryStatus.Complete,
+                    StringComparison.OrdinalIgnoreCase
+                ) && !File.Exists(filePath)
+            )
             {
                 ui.ShowWarning(
                     $"  Story file not found for '{storyKey}' at '{filePath}' — skipping."
@@ -232,23 +251,28 @@ public class SprintPlanningPhase(
                 continue;
             }
 
-            // Step e.2: read title and short description from file
-            var title = await StoryFileManager.ReadTitleAsync(filePath);
-            if (string.IsNullOrWhiteSpace(title))
-                title = ToHumanName(storyKey);
-
-            var shortDesc = await StoryFileManager.ReadShortDescriptionAsync(filePath);
+            // Step e.2: read title and short description from file (if it exists)
+            var title = ToHumanName(storyKey);
+            var shortDesc = string.Empty;
+            if (File.Exists(filePath))
+            {
+                var fileTitle = await StoryFileManager.ReadTitleAsync(filePath);
+                if (!string.IsNullOrWhiteSpace(fileTitle))
+                    title = fileTitle;
+                shortDesc = await StoryFileManager.ReadShortDescriptionAsync(filePath);
+            }
 
             // Step e.3: check for existing ralph-story-id (resume after ledger.db delete)
-            var existingId = await StoryFileManager.ReadRalphStoryIdAsync(filePath);
             long storyId;
-
-            if (existingId.HasValue)
+            if (File.Exists(filePath))
             {
-                // Stale ID from a deleted ledger.db — create fresh record and overwrite
-                ui.ShowInfo(
-                    $"  Story '{storyKey}': stale ralph-story-id {existingId} found — reassigning."
-                );
+                var existingId = await StoryFileManager.ReadRalphStoryIdAsync(filePath);
+                if (existingId.HasValue)
+                {
+                    ui.ShowInfo(
+                        $"  Story '{storyKey}': stale ralph-story-id {existingId} found — reassigning."
+                    );
+                }
             }
 
             // Determine epic: infer from story key prefix (e.g., "1-1-..." → epic "epic-1")
@@ -257,14 +281,19 @@ public class SprintPlanningPhase(
             storyId = await storyRepo.InsertFileStoryAsync(
                 epicId,
                 title,
-                filePath,
+                File.Exists(filePath) ? filePath : string.Empty,
                 orderIndex++,
-                shortDescription: shortDesc
+                shortDescription: shortDesc,
+                status: storyStatus
             );
 
-            // Step e.4: write ralph-story-id front-matter
-            await StoryFileManager.WriteRalphStoryIdAsync(filePath, storyId);
-            ui.ShowInfo($"  Story [{storyId}] {title} → {Path.GetFileName(filePath)}");
+            // Step e.4: write ralph-story-id front-matter (only if file exists)
+            if (File.Exists(filePath))
+                await StoryFileManager.WriteRalphStoryIdAsync(filePath, storyId);
+            ui.ShowInfo(
+                $"  Story [{storyId}] {title} [{storyStatus}]"
+                    + (File.Exists(filePath) ? $" → {Path.GetFileName(filePath)}" : " (no file)")
+            );
         }
 
         // Guard: at least one story must exist
@@ -372,6 +401,69 @@ public class SprintPlanningPhase(
         // "epic-1" → "Epic 1", "epic-auth-service" → "Epic Auth Service"
         var words = key.Split('-').Select(w => char.ToUpperInvariant(w[0]) + w[1..]);
         return string.Join(' ', words);
+    }
+
+    /// <summary>
+    /// Maps a YAML story status string to the SQLite <see cref="StoryStatus"/> constant.
+    /// </summary>
+    /// <remarks>
+    /// Only <c>done</c> stories map to <see cref="StoryStatus.Complete"/>; every other
+    /// value (backlog, ready-for-dev, in-progress, …) maps to
+    /// <see cref="StoryStatus.Pending"/> so the loop can pick them up.
+    /// </remarks>
+    internal static string MapYamlStatusToStoryStatus(string yamlStatus) =>
+        string.Equals(yamlStatus, "done", StringComparison.OrdinalIgnoreCase)
+            ? StoryStatus.Complete
+            : StoryStatus.Pending;
+
+    /// <summary>
+    /// Maps a YAML epic status string + whether the epic has any non-done child stories
+    /// to the SQLite <see cref="EpicStatus"/> constant.
+    /// </summary>
+    /// <remarks>
+    /// <list type="table">
+    ///   <listheader><term>YAML</term><term>Has non-done stories?</term><term>SQLite</term></listheader>
+    ///   <item><term>done</term><term>yes</term><term>in_progress (Phase 2 skipped; go to Phase 3)</term></item>
+    ///   <item><term>done</term><term>no</term><term>complete (skip entirely)</term></item>
+    ///   <item><term>in-progress</term><term>—</term><term>in_progress</term></item>
+    ///   <item><term>backlog / anything else</term><term>—</term><term>pending</term></item>
+    /// </list>
+    /// </remarks>
+    internal static string MapYamlStatusToEpicStatus(string yamlStatus, bool hasNonDoneStories)
+    {
+        if (string.Equals(yamlStatus, "done", StringComparison.OrdinalIgnoreCase))
+            return hasNonDoneStories ? EpicStatus.InProgress : EpicStatus.Complete;
+
+        if (string.Equals(yamlStatus, "in-progress", StringComparison.OrdinalIgnoreCase))
+            return EpicStatus.InProgress;
+
+        return EpicStatus.Pending;
+    }
+
+    /// <summary>
+    /// Pre-computes, for each epic key, whether it owns at least one non-done story.
+    /// Uses the same epic-key inference logic as <see cref="InferEpicId"/>.
+    /// </summary>
+    internal static Dictionary<string, bool> BuildEpicNonDoneMap(
+        IReadOnlyList<StatusEntry> storyEntries
+    )
+    {
+        var result = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var story in storyEntries)
+        {
+            var parts = story.Key.Split('-');
+            if (parts.Length < 2 || !long.TryParse(parts[0], out var epicIndex))
+                continue;
+
+            var epicKey = $"epic-{epicIndex}";
+            var isDone = string.Equals(story.Status, "done", StringComparison.OrdinalIgnoreCase);
+
+            if (!result.TryGetValue(epicKey, out var current))
+                result[epicKey] = !isDone;
+            else if (!isDone)
+                result[epicKey] = true;
+        }
+        return result;
     }
 
     private string BuildPlanningPrompt(Sprint sprint, PlanningArtifacts artifacts)
