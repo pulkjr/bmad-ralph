@@ -24,7 +24,7 @@ public sealed class BmadSkillContentLoaderTests : IDisposable
     public void LoadForPrompt_NormalizesRelativePaths()
     {
         var shared = Path.Combine(_tempDir, "skills");
-        var skillDir = Path.Combine(shared, "bmad-agent-dev");
+        var skillDir = Path.Combine(shared, "bmad-dev");
         Directory.CreateDirectory(skillDir);
         File.WriteAllText(
             Path.Combine(skillDir, "SKILL.md"),
@@ -46,7 +46,7 @@ public sealed class BmadSkillContentLoaderTests : IDisposable
             }
         );
 
-        var content = loader.LoadForPrompt("bmad-agent-dev");
+        var content = loader.LoadForPrompt("bmad-dev");
 
         Assert.Contains(Path.GetFullPath(Path.Combine(skillDir, "docs", "guide.md")), content);
         Assert.Contains(

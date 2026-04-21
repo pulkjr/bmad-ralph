@@ -25,7 +25,7 @@ public sealed class SessionFactorySkillInjectionTests : IDisposable
     public void ForDeveloper_InjectsSkillContentIntoSystemMessage()
     {
         var shared = Path.Combine(_tempDir, "skills");
-        var skillDir = Path.Combine(shared, "bmad-agent-dev");
+        var skillDir = Path.Combine(shared, "bmad-dev");
         Directory.CreateDirectory(skillDir);
         File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "Developer identity marker.");
 
@@ -33,7 +33,7 @@ public sealed class SessionFactorySkillInjectionTests : IDisposable
         var cfg = factory.ForDeveloper(PermissionHandler.ApproveAll);
 
         Assert.NotNull(cfg.SystemMessage);
-        Assert.Contains("BMAD SKILL CONTEXT (bmad-agent-dev)", cfg.SystemMessage!.Content);
+        Assert.Contains("BMAD SKILL CONTEXT (bmad-dev)", cfg.SystemMessage!.Content);
         Assert.Contains("Developer identity marker.", cfg.SystemMessage.Content);
     }
 
@@ -41,7 +41,7 @@ public sealed class SessionFactorySkillInjectionTests : IDisposable
     public void BuildPartyPersonas_IncludesSkillContentForMappedPersona()
     {
         var shared = Path.Combine(_tempDir, "skills");
-        var pmSkillDir = Path.Combine(shared, "bmad-agent-pm");
+        var pmSkillDir = Path.Combine(shared, "bmad-pm");
         Directory.CreateDirectory(pmSkillDir);
         File.WriteAllText(Path.Combine(pmSkillDir, "SKILL.md"), "PM identity marker.");
 

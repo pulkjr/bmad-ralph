@@ -39,11 +39,11 @@ public class SessionFactory(RalphLoopConfig config)
     /// </summary>
     public static IReadOnlyList<(string SkillId, string DisplayName)> RequiredSkills { get; } =
     [
-        ("bmad-agent-dev", "Developer (Amelia)"),
-        ("bmad-agent-architect", "Architect (Winston)"),
-        ("bmad-agent-pm", "Product Manager (John)"),
-        ("bmad-agent-tech-writer", "Tech Writer (Paige)"),
-        ("bmad-agent-ux-designer", "UX Designer (Sally)"),
+        ("bmad-dev", "Developer (Amelia)"),
+        ("bmad-architect", "Architect (Winston)"),
+        ("bmad-pm", "Product Manager (John)"),
+        ("bmad-tech-writer", "Tech Writer (Paige)"),
+        ("bmad-ux-designer", "UX Designer (Sally)"),
         ("bmad-sprint-planning", "Sprint Planning"),
         ("bmad-create-story", "Story Refiner"),
     ];
@@ -62,7 +62,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.Developer,
-            "bmad-agent-dev",
+            "bmad-dev",
             // BMAD skill already defines Amelia's identity, principles, and project-context loading.
             // Only add RalphLoop-specific constraints not covered by the skill.
             "You may NOT edit test.sh to fix test failures — fix the application code instead."
@@ -93,7 +93,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.Architect,
-            "bmad-agent-architect",
+            "bmad-architect",
             // BMAD skill defines Winston's identity. Add party-mode clarification context.
             "In party-mode, answer technical questions and resolve architectural ambiguities."
                 + AntiInjectionNote,
@@ -107,7 +107,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.ProductManager,
-            "bmad-agent-pm",
+            "bmad-pm",
             // BMAD skill defines John's identity. Add party-mode scope-guard context.
             "In party-mode, surface scope drift, missing requirements, and PRD violations."
                 + AntiInjectionNote,
@@ -137,7 +137,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.TechWriter,
-            "bmad-agent-tech-writer",
+            "bmad-tech-writer",
             // BMAD skill defines Paige's identity. No additional loop-specific constraints needed.
             string.Empty,
             onPermission,
@@ -150,7 +150,7 @@ public class SessionFactory(RalphLoopConfig config)
     ) =>
         Build(
             config.Models.UxDesigner,
-            "bmad-agent-ux-designer",
+            "bmad-ux-designer",
             // BMAD skill defines Sally's identity. Add agent-tui deployment-specific instruction.
             "Use agent-tui to verify screen states and flows against ux-design-specification.md.",
             onPermission,
@@ -212,11 +212,11 @@ public class SessionFactory(RalphLoopConfig config)
     public List<CustomAgentConfig> BuildPartyPersonas(bool includeUxDesigner)
     {
         var skillByPersona = new Dictionary<string, string>();
-        AddPartyPersonaSkill(skillByPersona, "product-manager", "bmad-agent-pm");
+        AddPartyPersonaSkill(skillByPersona, "product-manager", "bmad-pm");
         AddPartyPersonaSkill(skillByPersona, "developer", "bmad-quick-dev");
-        AddPartyPersonaSkill(skillByPersona, "architect", "bmad-agent-architect");
-        AddPartyPersonaSkill(skillByPersona, "tech-writer", "bmad-agent-tech-writer");
-        AddPartyPersonaSkill(skillByPersona, "ux-designer", "bmad-agent-ux-designer");
+        AddPartyPersonaSkill(skillByPersona, "architect", "bmad-architect");
+        AddPartyPersonaSkill(skillByPersona, "tech-writer", "bmad-tech-writer");
+        AddPartyPersonaSkill(skillByPersona, "ux-designer", "bmad-ux-designer");
 
         return Personas.PartyModePersonas.Build(includeUxDesigner, skillByPersona);
     }
