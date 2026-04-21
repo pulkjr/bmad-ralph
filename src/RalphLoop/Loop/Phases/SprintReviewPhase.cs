@@ -537,7 +537,8 @@ public class SprintReviewPhase(
 
             CONFIDENCE VOTE PROTOCOL:
             After discussion, every agent (including the Skeptic and Edge Case Hunter) casts exactly
-            one vote using one of these formats:
+            one vote. Each vote MUST appear as a standalone line (not inside a Markdown table cell)
+            using one of these exact formats:
 
               VOTE: YES — <brief reason>
               VOTE: NO (MINOR) — <specific issue> | FIX: <proposed resolution>
@@ -691,7 +692,16 @@ public class SprintReviewPhase(
             | System.Text.RegularExpressions.RegexOptions.Multiline
     );
 
-    // Secondary parser for agents that produce a Markdown table instead of VOTE: lines.
+    // Secondary parser for agents that produce a Markdown table with VOTE: prefix inside
+    // the vote cell: "| <agent> | VOTE: NO (MINOR) — <detail> | FIX: ... |"
+    // \*{0,2} handles occasional **VOTE:** bold wrapping.
+    private static readonly System.Text.RegularExpressions.Regex TableVoteWithPrefixRegex = new(
+        @"^\|[^|]*\|\s*\*{0,2}VOTE:\*{0,2}\s*(YES|NO\s*\(MINOR\)|NO\s*\(MAJOR\))\s*[—\-–]+\s*(.+)",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            | System.Text.RegularExpressions.RegexOptions.Multiline
+    );
+
+    // Tertiary parser for agents that produce a Markdown table with bare vote values.
     // Matches: | <agent name> | YES | or | <agent name> | NO (MINOR) | etc.
     private static readonly System.Text.RegularExpressions.Regex TableVoteRegex = new(
         @"^\|[^|]*\|\s*(YES|NO\s*\(MINOR\)|NO\s*\(MAJOR\))\s*\|",
@@ -731,9 +741,26 @@ public class SprintReviewPhase(
             votes.Add(new PersonaVote(m.Value, isYes, isMajor, detail));
         }
 
-        // Fallback: if no VOTE: lines were found, try parsing a Markdown table.
-        // Agents sometimes produce "| Agent | NO (MINOR) |" rows instead of "VOTE: NO (MINOR) — reason".
-        // Detail is empty in this case; the minor-issue resolution path will fall back to the full discussion.
+        // Fallback: if no standalone VOTE: lines were found, try table-based formats.
+        if (votes.Count == 0)
+        {
+            // First try: "| Agent | VOTE: NO (MINOR) — detail |" — table row with VOTE: prefix
+            // in the vote cell. Preserves detail for minor-issue refinement context.
+            foreach (
+                System.Text.RegularExpressions.Match m in TableVoteWithPrefixRegex.Matches(response)
+            )
+            {
+                var typeToken = m.Groups[1].Value.Trim();
+                var detail = m.Groups[2].Value.Trim();
+                var isYes = typeToken.StartsWith("YES", StringComparison.OrdinalIgnoreCase);
+                var isMajor =
+                    typeToken.Contains("MAJOR", StringComparison.OrdinalIgnoreCase) && !isYes;
+                votes.Add(new PersonaVote(m.Value, isYes, isMajor, detail));
+            }
+        }
+
+        // Second fallback: "| Agent | YES |" / "| Agent | NO (MINOR) |" — bare vote type in cell.
+        // Detail is empty; the minor-issue resolution path falls back to the full discussion.
         if (votes.Count == 0)
         {
             foreach (System.Text.RegularExpressions.Match m in TableVoteRegex.Matches(response))

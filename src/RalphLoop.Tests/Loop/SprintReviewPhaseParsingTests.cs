@@ -381,7 +381,99 @@ public class SprintReviewPhaseParsingTests
         Assert.False(SprintReviewPhase.IsReadinessConcernDirectlyActionable(response));
     }
 
-    // ── BuildReviewSummary ────────────────────────────────────────────────────
+    // ── Markdown table with VOTE: prefix in vote cell ─────────────────────────
+
+    [Fact]
+    public void ParseConfidenceVoteResult_TableWithVotePrefix_CorrectCounts()
+    {
+        // Format: table row where the vote cell begins with "VOTE: YES/NO — detail"
+        var response = """
+            | Agent | Vote |
+            |---|---|
+            | **PM — Alex Chen** | VOTE: NO (MINOR) — AC #1 references `.sln`; fix: update to `.slnx` |
+            | **Developer — Jordan Walsh** | VOTE: YES — Scaffold is solid |
+            | **QA — Sam Torres** | VOTE: YES — All ACs are verifiably met |
+            | **Security — Morgan Patel** | VOTE: YES — No security concerns |
+            | **Architect — Winston Chen** | VOTE: YES — `.slnx` is correct format |
+            | **Skeptic — Riley Kim** | VOTE: NO (MINOR) — `.slnx` undocumented in AC | FIX: Add note |
+            | **Edge Case Hunter — Casey Lin** | VOTE: YES — Edge cases resolvable |
+
+            **CONFIDENCE: FAILED (MINOR)** — 2 minor issues flagged
+            """;
+
+        var result = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        Assert.Equal(5, result.YesCount);
+        Assert.Equal(2, result.NoMinorCount);
+        Assert.Empty(result.MajorIssues);
+        Assert.Equal(SprintReviewPhase.VoteOutcome.FailedMinorOnly, result.Outcome);
+        Assert.Equal(7, result.Votes.Count);
+    }
+
+    [Fact]
+    public void ParseConfidenceVoteResult_TableWithVotePrefix_PreservesDetail()
+    {
+        var response =
+            "| **PM — Alex Chen** | VOTE: NO (MINOR) — AC #1 references `.sln` artifact; actual solution is `.slnx` | FIX: Update wording |\n"
+            + "**CONFIDENCE: FAILED (MINOR)** — 1 minor issue";
+
+        var result = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        Assert.Single(result.Votes);
+        Assert.False(result.Votes[0].IsYes);
+        Assert.False(result.Votes[0].IsMajor);
+        Assert.Contains("AC #1 references", result.Votes[0].Detail);
+    }
+
+    [Fact]
+    public void ParseConfidenceVoteResult_MultiStoryTableFormat_CorrectCounts()
+    {
+        // Mirrors the exact real-world output format that caused the regression:
+        // per-story Markdown tables with VOTE: prefix in the vote cell,
+        // **CONFIDENCE: FAILED (MINOR)** inline bold, and final verdict in a code block.
+        var response = """
+            ## 🗳️ CONFIDENCE VOTES
+
+            ### Story 0.1: Solution Scaffolding & Build Configuration
+
+            | Agent | Vote |
+            |---|---|
+            | **PM — Alex Chen** | VOTE: NO (MINOR) — AC #1 references `.sln`; fix wording |
+            | **Developer — Jordan Walsh** | VOTE: YES — Scaffold is solid |
+            | **QA — Sam Torres** | VOTE: YES — All 5 ACs are verifiably met |
+            | **Security — Morgan Patel** | VOTE: YES — No security concerns |
+            | **Architect — Winston Chen** | VOTE: YES — `.slnx` is the correct modern format |
+            | **Skeptic — Riley Kim** | VOTE: NO (MINOR) — `.slnx` undocumented in AC |
+            | **Edge Case Hunter — Casey Lin** | VOTE: YES — Edge cases resolvable |
+
+            **Story 0.1 Tally:** 5 YES / 2 NO (MINOR)
+            **CONFIDENCE: FAILED (MINOR)** — 2 minor issues flagged
+
+            ### Story 0.2: Architecture Test Foundation
+
+            | Agent | Vote |
+            |---|---|
+            | **PM — Alex Chen** | VOTE: NO (MINOR) — AC #6 unmet: CI coverage gate absent |
+            | **Developer — Jordan Walsh** | VOTE: NO (MINOR) — AT-10 closed generic bug |
+            | **QA — Sam Torres** | VOTE: NO (MINOR) — AC #6 unmet; AT-07 redundant |
+            | **Security — Morgan Patel** | VOTE: YES — No security ACs unmet |
+            | **Architect — Winston Chen** | VOTE: NO (MINOR) — AT-10 open-generic bug; AC #6 gap |
+            | **Skeptic — Riley Kim** | VOTE: NO (MINOR) — AC #6 not met |
+            | **Edge Case Hunter — Casey Lin** | VOTE: NO (MINOR) — AT-10 false-negative |
+
+            **Story 0.2 Tally:** 1 YES / 6 NO (MINOR)
+            **CONFIDENCE: FAILED (MINOR)**
+            """;
+
+        var result = SprintReviewPhase.ParseConfidenceVoteResult(response);
+
+        // Totals across both story tables
+        Assert.Equal(6, result.YesCount);
+        Assert.Equal(8, result.NoMinorCount);
+        Assert.Empty(result.MajorIssues);
+        Assert.Equal(SprintReviewPhase.VoteOutcome.FailedMinorOnly, result.Outcome);
+        Assert.Equal(14, result.Votes.Count);
+    }
 
     [Fact]
     public void BuildReviewSummary_IncludesOutcomeAndCounts()
