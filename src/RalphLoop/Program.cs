@@ -227,6 +227,13 @@ catch (OperationCanceledException)
     ui.ShowWarning("Ralph Loop was cancelled.");
     return 130;
 }
+catch (InvalidOperationException ex)
+{
+    // Thrown by phases (e.g. readiness FAIL) after already displaying the error via ui.
+    // Log for diagnostics but do not print a stack trace — the user already saw the message.
+    sp.GetRequiredService<RunLogger>().LogError("phase-fail", ex.ToString());
+    return 1;
+}
 catch (Exception ex)
 {
     ui.ShowError($"Fatal error: {ex.Message}");

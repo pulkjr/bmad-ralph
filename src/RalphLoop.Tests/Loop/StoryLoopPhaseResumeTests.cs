@@ -63,16 +63,16 @@ public class StoryLoopPhaseResumeTests
     }
 
     [Fact]
-    public void ExtractVerdict_BlockquotePrefixedLine_ReturnsNull()
+    public void ExtractVerdict_BlockquotePrefixedLine_ReturnsVerdictText()
     {
-        // ExtractVerdict only strips whitespace — it does not handle "> VERDICT:" blockquote
-        // prefix emitted by the Copilot SDK (unlike ParseConfidenceVoteResult which has
-        // a dedicated regex). Documenting actual behaviour.
+        // ExtractVerdict now strips "> " blockquote prefix (emitted by the Copilot SDK)
+        // and "**" bold markers before checking for the VERDICT: keyword.
         var response = "> VERDICT: RESOLVED — all findings addressed";
 
         var verdict = StoryLoopPhase.ExtractVerdict(response);
 
-        Assert.Null(verdict);
+        Assert.NotNull(verdict);
+        Assert.StartsWith("RESOLVED", verdict, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

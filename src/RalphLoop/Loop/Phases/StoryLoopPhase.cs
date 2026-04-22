@@ -920,9 +920,11 @@ public class StoryLoopPhase(
     {
         foreach (var line in response.Split('\n').Reverse())
         {
-            var trimmed = line.Trim();
+            // Strip optional blockquote prefix (>) and markdown bold markers (**) so that
+            // "**VERDICT: CONCERNS — ..." and "> **VERDICT: FAIL — ..." are handled correctly.
+            var trimmed = line.Trim().TrimStart('>').Trim().TrimStart('*').TrimStart();
             if (trimmed.StartsWith("VERDICT:", StringComparison.OrdinalIgnoreCase))
-                return trimmed["VERDICT:".Length..].Trim();
+                return trimmed["VERDICT:".Length..].Trim().TrimEnd('*').Trim();
         }
         return null;
     }

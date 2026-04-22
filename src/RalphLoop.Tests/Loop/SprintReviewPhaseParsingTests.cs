@@ -545,4 +545,145 @@ public class SprintReviewPhaseParsingTests
         // 120 chars of content + "…"
         Assert.Contains("…", detailLine);
     }
+
+    // ── Readiness Decision Parsing (ParseReadinessDecision) ───────────────────
+
+    /// <summary>
+    /// Regression: The exact condition from the reported bug.
+    /// The agent output "**VERDICT: CONCERNS — ..." (markdown bold prefix).
+    /// ExtractVerdict missed it (only matched bare "VERDICT:").
+    /// The fallback \bFAIL\b matched "fail" in the concern description body text.
+    /// Result: incorrectly classified as Fail instead of Concerns.
+    /// </summary>
+    [Fact]
+    public void ParseReadinessDecision_BoldVerdictConcernsContainingFail_ReturnsConcerns()
+    {
+        // This is the exact agent output format that caused the reported error.
+        var response = """
+            ## Implementation Readiness Review
+
+            ### Story 9-1 Issues
+            - Missing tasks and dev notes
+            - Wrong status assigned
+
+            ### Story 9-2 Issues
+            - batch-API mismatch
+            - FormatterFault builder mismatch
+
+            **VERDICT: CONCERNS — Stories 9-1 and 9-2 both lack tasks/dev notes and contain spec errors (wrong status for 9-1; batch-API/FormatterFault/builder mismatches for 9-2)
+            that would cause a dev agent to fail or produce incorrect implementation**
+            """;
+
+        var result = SprintReviewPhase.ParseReadinessDecision(response);
+
+        Assert.Equal(SprintReviewPhase.ReadinessDecision.Concerns, result);
+    }
+
+    [Fact]
+    public void ParseReadinessDecision_PlainVerdictConcerns_ReturnsConcerns()
+    {
+        const string response = "Some analysis.\n\nVERDICT: CONCERNS — missing tasks in story 3";
+        Assert.Equal(
+            SprintReviewPhase.ReadinessDecision.Concerns,
+            SprintReviewPhase.ParseReadinessDecision(response)
+        );
+    }
+
+    [Fact]
+    public void ParseReadinessDecision_PlainVerdictPass_ReturnsPass()
+    {
+        const string response = "All stories look good.\n\nVERDICT: PASS";
+        Assert.Equal(
+            SprintReviewPhase.ReadinessDecision.Pass,
+            SprintReviewPhase.ParseReadinessDecision(response)
+        );
+    }
+
+    [Fact]
+    public void ParseReadinessDecision_PlainVerdictFail_ReturnsFail()
+    {
+        const string response =
+            "Critical issues found.\n\nVERDICT: FAIL — missing architecture doc";
+        Assert.Equal(
+            SprintReviewPhase.ReadinessDecision.Fail,
+            SprintReviewPhase.ParseReadinessDecision(response)
+        );
+    }
+
+    [Fact]
+    public void ParseReadinessDecision_BoldVerdictPass_ReturnsPass()
+    {
+        const string response = "Everything checks out.\n\n**VERDICT: PASS**";
+        Assert.Equal(
+            SprintReviewPhase.ReadinessDecision.Pass,
+            SprintReviewPhase.ParseReadinessDecision(response)
+        );
+    }
+
+    [Fact]
+    public void ParseReadinessDecision_BlockquoteVerdictConcerns_ReturnsConcerns()
+    {
+        const string response = "Analysis done.\n\n> VERDICT: CONCERNS — story 2 needs tasks";
+        Assert.Equal(
+            SprintReviewPhase.ReadinessDecision.Concerns,
+            SprintReviewPhase.ParseReadinessDecision(response)
+        );
+    }
+
+    [Fact]
+    public void ParseReadinessDecision_ConcernsBodyTextContainsFail_DoesNotReturnFail()
+    {
+        // The word "fail" appears in the concern description — must NOT trigger Fail decision.
+        const string response =
+            "These issues would cause a dev agent to fail or produce incorrect output.\n\n"
+            + "VERDICT: CONCERNS — dev agent would fail on story 3";
+        Assert.Equal(
+            SprintReviewPhase.ReadinessDecision.Concerns,
+            SprintReviewPhase.ParseReadinessDecision(response)
+        );
+    }
+
+    // ── ExtractVerdict (StoryLoopPhase) ───────────────────────────────────────
+
+    [Fact]
+    public void ExtractVerdict_BoldPrefixAndSuffix_ReturnsCleanVerdictText()
+    {
+        const string response = "Some analysis text.\n\n**VERDICT: CONCERNS — stories lack tasks**";
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+        Assert.NotNull(verdict);
+        Assert.StartsWith("CONCERNS", verdict, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExtractVerdict_BlockquotePrefix_ReturnsCleanVerdictText()
+    {
+        const string response = "Analysis.\n\n> VERDICT: PASS";
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+        Assert.NotNull(verdict);
+        Assert.StartsWith("PASS", verdict, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExtractVerdict_BlockquoteBoldPrefix_ReturnsCleanVerdictText()
+    {
+        const string response = "Analysis.\n\n> **VERDICT: FAIL — missing doc**";
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+        Assert.NotNull(verdict);
+        Assert.StartsWith("FAIL", verdict, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExtractVerdict_PlainVerdict_ReturnsVerdictText()
+    {
+        const string response = "Analysis.\n\nVERDICT: PASS";
+        var verdict = StoryLoopPhase.ExtractVerdict(response);
+        Assert.Equal("PASS", verdict);
+    }
+
+    [Fact]
+    public void ExtractVerdict_NoVerdictLine_ReturnsNull()
+    {
+        const string response = "There is no verdict in this response.";
+        Assert.Null(StoryLoopPhase.ExtractVerdict(response));
+    }
 }

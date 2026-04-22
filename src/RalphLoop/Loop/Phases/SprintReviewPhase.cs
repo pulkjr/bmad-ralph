@@ -560,7 +560,7 @@ public class SprintReviewPhase(
         return string.Join("\n", rows);
     }
 
-    private static ReadinessDecision ParseReadinessDecision(string response)
+    internal static ReadinessDecision ParseReadinessDecision(string response)
     {
         // Check for structured VERDICT: line first
         var verdict = StoryLoopPhase.ExtractVerdict(response);
@@ -574,11 +574,12 @@ public class SprintReviewPhase(
                 return ReadinessDecision.Pass;
         }
 
-        // Fallback whole-word scan — default to Concerns (conservative) if ambiguous
+        // Fallback: require VERDICT: prefix to avoid false positives on "fail"/"pass"
+        // appearing in descriptive text (e.g. "would cause a dev agent to fail").
         if (
             System.Text.RegularExpressions.Regex.IsMatch(
                 response,
-                @"\bFAIL\b",
+                @"VERDICT:\s*\*{0,2}\s*FAIL\b",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             )
         )
@@ -586,7 +587,7 @@ public class SprintReviewPhase(
         if (
             System.Text.RegularExpressions.Regex.IsMatch(
                 response,
-                @"\bCONCERNS\b",
+                @"VERDICT:\s*\*{0,2}\s*CONCERNS\b",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             )
         )
@@ -594,7 +595,7 @@ public class SprintReviewPhase(
         if (
             System.Text.RegularExpressions.Regex.IsMatch(
                 response,
-                @"\bPASS\b",
+                @"VERDICT:\s*\*{0,2}\s*PASS\b",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             )
         )
@@ -647,7 +648,7 @@ public class SprintReviewPhase(
         return explicitlyNoBlockers || !hasBlockingLanguage;
     }
 
-    private enum ReadinessDecision
+    internal enum ReadinessDecision
     {
         Pass,
         Concerns,
