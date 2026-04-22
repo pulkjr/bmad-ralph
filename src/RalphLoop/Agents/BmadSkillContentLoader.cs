@@ -9,6 +9,24 @@ namespace RalphLoop.Agents;
 /// </summary>
 public sealed class BmadSkillContentLoader(RalphLoopConfig config)
 {
+    /// <summary>
+    /// Maps canonical skill IDs (used throughout the codebase) to their BMAD 6.x
+    /// on-disk directory names. When a skill is not found under its canonical name,
+    /// the alias is tried as a fallback so both pre-6.x and 6.x installations work.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> SkillAliases = new Dictionary<
+        string,
+        string
+    >(StringComparer.OrdinalIgnoreCase)
+    {
+        ["bmad-dev"] = "bmad-agent-dev",
+        ["bmad-architect"] = "bmad-agent-architect",
+        ["bmad-pm"] = "bmad-agent-pm",
+        ["bmad-tech-writer"] = "bmad-agent-tech-writer",
+        ["bmad-ux-designer"] = "bmad-agent-ux-designer",
+        ["bmad-quick-dev"] = "bmad-agent-quick-flow-solo-dev",
+    };
+
     private readonly List<string> _skillDirs = SkillDirectoryResolver.Resolve(config);
 
     public string LoadForPrompt(string skillId)
@@ -43,11 +61,18 @@ public sealed class BmadSkillContentLoader(RalphLoopConfig config)
 
     private string ResolveSkillFile(string skillId)
     {
+        var candidates = new List<string> { skillId };
+        if (SkillAliases.TryGetValue(skillId, out var alias))
+            candidates.Add(alias);
+
         foreach (var dir in _skillDirs)
         {
-            var candidate = Path.Combine(dir, skillId, "SKILL.md");
-            if (File.Exists(candidate))
-                return candidate;
+            foreach (var candidate in candidates)
+            {
+                var path = Path.Combine(dir, candidate, "SKILL.md");
+                if (File.Exists(path))
+                    return path;
+            }
         }
 
         throw new InvalidOperationException(

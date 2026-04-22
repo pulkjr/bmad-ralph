@@ -22,7 +22,13 @@ public static class BmadSkillValidator
 
         foreach (var (skillId, displayName) in SessionFactory.RequiredSkills)
         {
-            var found = skillDirs.Any(dir => Directory.Exists(Path.Combine(dir, skillId)));
+            var candidates = new List<string> { skillId };
+            if (BmadSkillContentLoader.SkillAliases.TryGetValue(skillId, out var alias))
+                candidates.Add(alias);
+
+            var found = skillDirs.Any(dir =>
+                candidates.Any(c => Directory.Exists(Path.Combine(dir, c)))
+            );
             if (!found)
                 missing.Add((skillId, displayName));
         }

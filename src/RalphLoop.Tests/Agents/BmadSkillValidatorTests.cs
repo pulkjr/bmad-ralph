@@ -116,6 +116,50 @@ public sealed class BmadSkillValidatorTests : IDisposable
         Assert.Empty(missing);
     }
 
+    // ── BMAD 6.x alias resolution ─────────────────────────────────────────────
+
+    [Fact]
+    public void Check_ReturnsEmpty_WhenAllSkillsInstalledUnderAliasNames()
+    {
+        var skillDir = MakeSkillDir("bmad6");
+        foreach (var (skillId, _) in SessionFactory.RequiredSkills)
+        {
+            var dirName = BmadSkillContentLoader.SkillAliases.TryGetValue(skillId, out var alias)
+                ? alias
+                : skillId;
+            Directory.CreateDirectory(Path.Combine(skillDir, dirName));
+        }
+
+        var missing = BmadSkillValidator.Check([skillDir]);
+
+        Assert.Empty(missing);
+    }
+
+    [Fact]
+    public void Check_ReturnsEmpty_WhenSkillsAreMixOfCanonicalAndAliasNames()
+    {
+        var skillDir = MakeSkillDir("mixed");
+        var required = SessionFactory.RequiredSkills;
+
+        // Install first half under canonical names, rest under alias names.
+        for (var i = 0; i < required.Count; i++)
+        {
+            var (skillId, _) = required[i];
+            var useAlias =
+                i >= required.Count / 2
+                && BmadSkillContentLoader.SkillAliases.TryGetValue(skillId, out _);
+            var dirName =
+                useAlias && BmadSkillContentLoader.SkillAliases.TryGetValue(skillId, out var alias)
+                    ? alias
+                    : skillId;
+            Directory.CreateDirectory(Path.Combine(skillDir, dirName));
+        }
+
+        var missing = BmadSkillValidator.Check([skillDir]);
+
+        Assert.Empty(missing);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private string MakeSkillDir(string name)

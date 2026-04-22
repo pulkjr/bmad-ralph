@@ -77,4 +77,62 @@ public sealed class BmadSkillContentLoaderTests : IDisposable
         );
         Assert.Contains("missing-skill", ex.Message);
     }
+
+    [Fact]
+    public void LoadForPrompt_FindsSkill_WhenInstalledUnderAliasName()
+    {
+        var shared = Path.Combine(_tempDir, "skills");
+        // Install under the BMAD 6.x alias name, not the canonical "bmad-dev".
+        var aliasSkillDir = Path.Combine(shared, "bmad-agent-dev");
+        Directory.CreateDirectory(aliasSkillDir);
+        File.WriteAllText(Path.Combine(aliasSkillDir, "SKILL.md"), "# Developer skill");
+
+        var loader = new BmadSkillContentLoader(
+            new RalphLoopConfig
+            {
+                ProjectPath = _tempDir,
+                SkillDirectories = new SkillDirectoriesConfig
+                {
+                    Shared = shared,
+                    Project = Path.Combine(_tempDir, "none"),
+                    CopilotSkills = Path.Combine(_tempDir, "none2"),
+                },
+            }
+        );
+
+        // Request using the canonical name — should resolve via alias.
+        var content = loader.LoadForPrompt("bmad-dev");
+
+        Assert.Contains("Developer skill", content);
+    }
+
+    [Fact]
+    public void LoadForPrompt_PrefersCanonicalOverAlias_WhenBothExist()
+    {
+        var shared = Path.Combine(_tempDir, "skills");
+        var canonicalSkillDir = Path.Combine(shared, "bmad-dev");
+        var aliasSkillDir = Path.Combine(shared, "bmad-agent-dev");
+        Directory.CreateDirectory(canonicalSkillDir);
+        Directory.CreateDirectory(aliasSkillDir);
+        File.WriteAllText(Path.Combine(canonicalSkillDir, "SKILL.md"), "# Canonical skill");
+        File.WriteAllText(Path.Combine(aliasSkillDir, "SKILL.md"), "# Alias skill");
+
+        var loader = new BmadSkillContentLoader(
+            new RalphLoopConfig
+            {
+                ProjectPath = _tempDir,
+                SkillDirectories = new SkillDirectoriesConfig
+                {
+                    Shared = shared,
+                    Project = Path.Combine(_tempDir, "none"),
+                    CopilotSkills = Path.Combine(_tempDir, "none2"),
+                },
+            }
+        );
+
+        var content = loader.LoadForPrompt("bmad-dev");
+
+        Assert.Contains("Canonical skill", content);
+        Assert.DoesNotContain("Alias skill", content);
+    }
 }
