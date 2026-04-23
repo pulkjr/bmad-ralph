@@ -52,9 +52,11 @@ public static class BmadSkillValidator
         AnsiConsole.WriteLine();
 
         foreach (var (skillId, displayName) in missing)
+        {
             AnsiConsole.MarkupLine(
                 $"    [yellow]{Markup.Escape(skillId), -26}[/] {Markup.Escape(displayName)}"
             );
+        }
 
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[grey]Searched in:[/]");

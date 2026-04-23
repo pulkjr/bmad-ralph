@@ -29,7 +29,7 @@ public sealed class BmadSkillContentLoaderTests : IDisposable
         File.WriteAllText(
             Path.Combine(skillDir, "SKILL.md"),
             """
-            See [guide](./docs/guide.md), `../common/rules.md`, and "./local/file.txt".
+            See [guide](./docs/guide.md), `../common/rules.md`, "./local/file.txt", and '../single/quoted.md'.
             """
         );
 
@@ -48,12 +48,49 @@ public sealed class BmadSkillContentLoaderTests : IDisposable
 
         var content = loader.LoadForPrompt("bmad-dev");
 
+        // Markdown link
         Assert.Contains(Path.GetFullPath(Path.Combine(skillDir, "docs", "guide.md")), content);
+        // Backtick path
         Assert.Contains(
             Path.GetFullPath(Path.Combine(skillDir, "..", "common", "rules.md")),
             content
         );
+        // Double-quoted path (regex Group 1)
         Assert.Contains(Path.GetFullPath(Path.Combine(skillDir, "local", "file.txt")), content);
+        // Single-quoted path (regex Group 2) - uses '../' so resolves one level up from skillDir
+        Assert.Contains(
+            Path.GetFullPath(Path.Combine(skillDir, "..", "single", "quoted.md")),
+            content
+        );
+    }
+
+    [Fact]
+    public void LoadForPrompt_OutputContainsBmadSkillWrapper()
+    {
+        var shared = Path.Combine(_tempDir, "skills");
+        var skillDir = Path.Combine(shared, "bmad-dev");
+        Directory.CreateDirectory(skillDir);
+        File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "# Developer skill");
+
+        var loader = new BmadSkillContentLoader(
+            new RalphLoopConfig
+            {
+                ProjectPath = _tempDir,
+                SkillDirectories = new SkillDirectoriesConfig
+                {
+                    Shared = shared,
+                    Project = Path.Combine(_tempDir, "none"),
+                    CopilotSkills = Path.Combine(_tempDir, "none2"),
+                },
+            }
+        );
+
+        var content = loader.LoadForPrompt("bmad-dev");
+
+        Assert.Contains("BMAD SKILL CONTEXT (bmad-dev)", content);
+        Assert.Contains("<bmad-skill>", content);
+        Assert.Contains("</bmad-skill>", content);
+        Assert.Contains("# Developer skill", content);
     }
 
     [Fact]
@@ -134,5 +171,83 @@ public sealed class BmadSkillContentLoaderTests : IDisposable
 
         Assert.Contains("Canonical skill", content);
         Assert.DoesNotContain("Alias skill", content);
+    }
+
+    [Fact]
+    public void LoadForPrompt_FindsSkill_InSecondDirectory_WhenNotInFirst()
+    {
+        var firstDir = Path.Combine(_tempDir, "first-skills");
+        var secondDir = Path.Combine(_tempDir, "second-skills");
+        Directory.CreateDirectory(firstDir);
+        var skillDir = Path.Combine(secondDir, "bmad-dev");
+        Directory.CreateDirectory(skillDir);
+        File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "# From second dir");
+
+        var loader = new BmadSkillContentLoader(
+            new RalphLoopConfig
+            {
+                ProjectPath = _tempDir,
+                SkillDirectories = new SkillDirectoriesConfig
+                {
+                    Shared = firstDir,
+                    Project = secondDir,
+                    CopilotSkills = Path.Combine(_tempDir, "none"),
+                },
+            }
+        );
+
+        var content = loader.LoadForPrompt("bmad-dev");
+
+        Assert.Contains("From second dir", content);
+    }
+
+    [Fact]
+    public void TryLoadForPrompt_ReturnsTrue_AndPopulatesContent_WhenSkillExists()
+    {
+        var shared = Path.Combine(_tempDir, "skills");
+        var skillDir = Path.Combine(shared, "bmad-dev");
+        Directory.CreateDirectory(skillDir);
+        File.WriteAllText(Path.Combine(skillDir, "SKILL.md"), "# Developer skill");
+
+        var loader = new BmadSkillContentLoader(
+            new RalphLoopConfig
+            {
+                ProjectPath = _tempDir,
+                SkillDirectories = new SkillDirectoriesConfig
+                {
+                    Shared = shared,
+                    Project = Path.Combine(_tempDir, "none"),
+                    CopilotSkills = Path.Combine(_tempDir, "none2"),
+                },
+            }
+        );
+
+        var result = loader.TryLoadForPrompt("bmad-dev", out var content);
+
+        Assert.True(result);
+        Assert.NotEmpty(content);
+        Assert.Contains("Developer skill", content);
+    }
+
+    [Fact]
+    public void TryLoadForPrompt_ReturnsFalse_WithEmptyContent_WhenSkillMissing()
+    {
+        var loader = new BmadSkillContentLoader(
+            new RalphLoopConfig
+            {
+                ProjectPath = _tempDir,
+                SkillDirectories = new SkillDirectoriesConfig
+                {
+                    Shared = Path.Combine(_tempDir, "skills"),
+                    Project = Path.Combine(_tempDir, "none"),
+                    CopilotSkills = Path.Combine(_tempDir, "none2"),
+                },
+            }
+        );
+
+        var result = loader.TryLoadForPrompt("no-such-skill", out var content);
+
+        Assert.False(result);
+        Assert.Equal(string.Empty, content);
     }
 }

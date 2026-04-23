@@ -27,6 +27,19 @@ public sealed class BmadSkillContentLoader(RalphLoopConfig config)
         ["bmad-quick-dev"] = "bmad-agent-quick-flow-solo-dev",
     };
 
+    private static readonly Regex MarkdownLinkRegex = new(
+        @"\((\.\.?/[^)\s]+)\)",
+        RegexOptions.Compiled
+    );
+    private static readonly Regex BacktickPathRegex = new(
+        @"`(\.\.?/[^`]+)`",
+        RegexOptions.Compiled
+    );
+    private static readonly Regex QuotedPathRegex = new(
+        @"""(\.\.?/[^""\s]+)""|'(\.\.?/[^'\s]+)'",
+        RegexOptions.Compiled
+    );
+
     private readonly List<string> _skillDirs = SkillDirectoryResolver.Resolve(config);
 
     public string LoadForPrompt(string skillId)
@@ -52,7 +65,7 @@ public sealed class BmadSkillContentLoader(RalphLoopConfig config)
             content = LoadForPrompt(skillId);
             return true;
         }
-        catch
+        catch (Exception)
         {
             content = string.Empty;
             return false;
@@ -82,26 +95,20 @@ public sealed class BmadSkillContentLoader(RalphLoopConfig config)
 
     private static string NormalizeRelativePaths(string input, string skillDir)
     {
-        var output = input;
-
-        // Markdown links/images: (...), where target is ./ or ../
-        output = Regex.Replace(
-            output,
-            @"\((\.\.?/[^)\s]+)\)",
+        var output = MarkdownLinkRegex.Replace(
+            input,
             m => $"({ToAbsolute(skillDir, m.Groups[1].Value)})"
         );
 
         // Backticked relative paths: `./foo/bar`
-        output = Regex.Replace(
+        output = BacktickPathRegex.Replace(
             output,
-            @"`(\.\.?/[^`]+)`",
             m => $"`{ToAbsolute(skillDir, m.Groups[1].Value)}`"
         );
 
         // Quoted relative paths: "./foo" or '../foo'
-        output = Regex.Replace(
+        output = QuotedPathRegex.Replace(
             output,
-            "\"(\\.?\\.?/[^\"\\s]+)\"|'(\\.?\\.?/[^'\\s]+)'",
             m =>
             {
                 var quote = m.Value[0];
