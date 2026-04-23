@@ -16,8 +16,9 @@ public class RalphLoopOrchestrator(
     SprintPlanningPhase phase1,
     SprintReviewPhase phase2,
     StoryLoopPhase phase3,
-    EpicCompletionPhase phase4,
-    RetrospectivePhase phase5,
+    CodeQualityGatePhase phase4,
+    EpicCompletionPhase phase5,
+    RetrospectivePhase phase6,
     EpicRepository epics,
     StoryRepository stories,
     ConsoleUI ui,
@@ -152,10 +153,13 @@ public class RalphLoopOrchestrator(
             await phase3.RunAsync(startedEpic, storyList, reviewResult.ReviewSummary, ct);
         }
 
-        // Phase 4: epic completion reviews
+        // Phase 4: code quality gate (parallel: performance, legacy drift, test coverage)
         await phase4.RunAsync(startedEpic, ct);
 
-        // Phase 5: retrospective + merge
-        await phase5.RunAsync(startedEpic, sprint, ct);
+        // Phase 5: epic completion reviews
+        await phase5.RunAsync(startedEpic, ct);
+
+        // Phase 6: retrospective + merge
+        await phase6.RunAsync(startedEpic, sprint, ct);
     }
 }

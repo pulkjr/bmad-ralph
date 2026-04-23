@@ -280,7 +280,20 @@ Program.cs
         │               ├── git commit on epic branch (if autoCommit=true)
         │               └── Story status → Complete in ledger.db
         │
-        ├── PHASE 4 - Epic Completion (EpicCompletionPhase)
+        ├── PHASE 4 - Code Quality Gate (CodeQualityGatePhase)  ◄── runs after ALL stories complete
+        │   ├── Collect changed-files summary from git
+        │   ├── Run four specialist reviewers IN PARALLEL (Task.WhenAll):
+        │   │   ├── Oliver (Performance Pedant) — N+1 queries, blocking async, memory allocations, O(n²)
+        │   │   ├── Vera   (Legacy Librarian)   — regressions, architectural drift, duplicate utilities
+        │   │   ├── Rex    (Test Archaeologist) — test-to-code mapping, zombie code, untested branches
+        │   │   └── Nora   (Coverage Critic)    — missing if/else arms, switch cases, untested error paths
+        │   ├── If any reviewer emits VERDICT: FAIL:
+        │   │   └── Code Quality Swarm (up to 2 attempts):
+        │   │       Architect triages → Developer fixes → Reviewers re-verify
+        │   │       Still failing after 2 swarms → human can force-proceed or abort
+        │   └── Gate passed → continue to Phase 5
+        │
+        ├── PHASE 5 - Epic Completion (EpicCompletionPhase)
         │   ├── Collect changed-files summary from git
         │   ├── Run all four specialist reviews (in sequence):
         │   │   ├── Security Analyst - OWASP Top 10, devskim/semgrep
@@ -295,7 +308,7 @@ Program.cs
         │   │   └── Not unanimous → human can force-close or abort
         │   └── Epic status → Complete in ledger.db
         │
-        └── PHASE 5 - Retrospective (RetrospectivePhase)
+        └── PHASE 6 - Retrospective (RetrospectivePhase)
             ├── Scrum Master runs sprint retrospective:
             │   ├── What went well?
             │   ├── What could be improved?
@@ -322,6 +335,10 @@ Program.cs
 | Skeptic                | -       | party model         | Adversarial assumption challenger                  |
 | Edge Case Hunter       | -       | party model         | Boundary condition finder                          |
 | Party-mode Facilitator | -       | `claude-sonnet-4.6` | Synthesizes multi-agent discussions                |
+| Performance Pedant     | Oliver  | `claude-sonnet-4.6` ¹ | N+1 queries, blocking async, allocations, O(n²) — Phase 4 gate |
+| Legacy Librarian       | Vera    | `claude-sonnet-4.6` ¹ | Regressions, architectural drift, duplicate utilities — Phase 4 gate |
+| Test Archaeologist     | Rex     | `claude-sonnet-4.6` ¹ | Test-to-code mapping, zombie code, untested branches — Phase 4 gate |
+| Coverage Critic        | Nora    | `claude-sonnet-4.6` ¹ | Missing if/else arms, switch cases, untested error paths — Phase 4 gate |
 
 ¹ QA is always assigned a different model than Developer to ensure independent verification.
 ² If `gpt-5` is not available on your subscription it is automatically replaced at startup.

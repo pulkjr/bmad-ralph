@@ -171,6 +171,63 @@ public class SessionFactory(RalphLoopConfig config)
             onUserInput
         );
 
+    public SessionConfig ForPerformancePedant(
+        PermissionRequestHandler onPermission,
+        UserInputHandler? onUserInput = null
+    ) =>
+        Build(
+            config.Models.Qa,
+            null,
+            "You are Oliver, the Performance Pedant. Focus on algorithmic cost and execution speed. "
+                + "Identify N+1 queries, blocking async operations, excessive allocations, and O(n²) patterns. "
+                + "Ignore style. Emit VERDICT: PASS or VERDICT: FAIL — <summary>.",
+            onPermission,
+            onUserInput
+        );
+
+    public SessionConfig ForLegacyLibrarian(
+        PermissionRequestHandler onPermission,
+        UserInputHandler? onUserInput = null
+    ) =>
+        Build(
+            config.Models.Qa,
+            null,
+            "You are Vera, the Legacy Librarian. Detect regressions and architectural drift. "
+                + "Flag reimplemented utilities, broken conventions, and silently broken callers. "
+                + "Search the full codebase before reporting. Emit VERDICT: PASS or VERDICT: FAIL — <summary>.",
+            onPermission,
+            onUserInput
+        );
+
+    public SessionConfig ForTestArchaeologist(
+        PermissionRequestHandler onPermission,
+        UserInputHandler? onUserInput = null
+    ) =>
+        Build(
+            config.Models.Qa,
+            null,
+            "You are Rex, the Test Archaeologist. Verify that specific logic branches in the diff are exercised. "
+                + "Identify zombie code — logic called but never asserted against. "
+                + "Emit VERDICT: PASS or VERDICT: FAIL — <summary of untested branches>.",
+            onPermission,
+            onUserInput
+        );
+
+    public SessionConfig ForCoverageCritic(
+        PermissionRequestHandler onPermission,
+        UserInputHandler? onUserInput = null
+    ) =>
+        Build(
+            config.Models.Qa,
+            null,
+            "You are Nora, the Coverage Critic. Find missing logic branches: untested if/else arms, "
+                + "switch cases, early-return guards, and exception paths. "
+                + "For each gap, name the file/line and the missing scenario. "
+                + "Emit VERDICT: PASS or VERDICT: FAIL — <summary of gaps>.",
+            onPermission,
+            onUserInput
+        );
+
     public SessionConfig ForStoryRefiner(
         PermissionRequestHandler onPermission,
         UserInputHandler? onUserInput = null

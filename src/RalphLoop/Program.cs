@@ -147,6 +147,7 @@ services.AddSingleton<PartyModeSession>();
 services.AddSingleton<SprintPlanningPhase>();
 services.AddSingleton<SprintReviewPhase>();
 services.AddSingleton<StoryLoopPhase>();
+services.AddSingleton<CodeQualityGatePhase>();
 services.AddSingleton<EpicCompletionPhase>();
 services.AddSingleton<RetrospectivePhase>();
 
