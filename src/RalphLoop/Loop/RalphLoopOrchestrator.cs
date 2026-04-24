@@ -22,7 +22,8 @@ public class RalphLoopOrchestrator(
     EpicRepository epics,
     StoryRepository stories,
     ConsoleUI ui,
-    RalphLoopConfig config
+    RalphLoopConfig config,
+    RunLogger logger
 )
 {
     public async Task RunAsync(CancellationToken ct = default)
@@ -154,7 +155,15 @@ public class RalphLoopOrchestrator(
         }
 
         // Phase 4: code quality gate (parallel: performance, legacy drift, test coverage)
-        await phase4.RunAsync(startedEpic, ct);
+        if (config.Phases.CodeQualityGate.Enabled)
+        {
+            await phase4.RunAsync(startedEpic, ct);
+        }
+        else
+        {
+            ui.ShowInfo("Phase 4 (Code Quality Gate) skipped — disabled in config.");
+            logger.LogPhaseSkipped("code-quality-gate", "disabled in config");
+        }
 
         // Phase 5: epic completion reviews
         await phase5.RunAsync(startedEpic, ct);

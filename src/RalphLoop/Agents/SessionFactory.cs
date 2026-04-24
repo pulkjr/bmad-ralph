@@ -176,7 +176,7 @@ public class SessionFactory(RalphLoopConfig config)
         UserInputHandler? onUserInput = null
     ) =>
         Build(
-            config.Models.Qa,
+            config.Models.CodeQuality,
             null,
             "You are Oliver, the Performance Pedant. Focus on algorithmic cost and execution speed. "
                 + "Identify N+1 queries, blocking async operations, excessive allocations, and O(n²) patterns. "
@@ -190,7 +190,7 @@ public class SessionFactory(RalphLoopConfig config)
         UserInputHandler? onUserInput = null
     ) =>
         Build(
-            config.Models.Qa,
+            config.Models.CodeQuality,
             null,
             "You are Vera, the Legacy Librarian. Detect regressions and architectural drift. "
                 + "Flag reimplemented utilities, broken conventions, and silently broken callers. "
@@ -204,7 +204,7 @@ public class SessionFactory(RalphLoopConfig config)
         UserInputHandler? onUserInput = null
     ) =>
         Build(
-            config.Models.Qa,
+            config.Models.CodeQuality,
             null,
             "You are Rex, the Test Archaeologist. Verify that specific logic branches in the diff are exercised. "
                 + "Identify zombie code — logic called but never asserted against. "
@@ -218,7 +218,7 @@ public class SessionFactory(RalphLoopConfig config)
         UserInputHandler? onUserInput = null
     ) =>
         Build(
-            config.Models.Qa,
+            config.Models.CodeQuality,
             null,
             "You are Nora, the Coverage Critic. Find missing logic branches: untested if/else arms, "
                 + "switch cases, early-return guards, and exception paths. "

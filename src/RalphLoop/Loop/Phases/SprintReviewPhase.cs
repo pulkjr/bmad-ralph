@@ -173,93 +173,101 @@ public class SprintReviewPhase(
         }
 
         // Phase 2.5: Implementation readiness gate
-        ui.ShowPhase("Phase 2.5", "Implementation Readiness Gate");
-
-        var readinessPrompt = $"""
-            Run bmad-check-implementation-readiness for epic '{epic.Name}'.
-            Review prd.md, architecture.md, and all stories in this epic.
-            Produce detailed reasoning, then end with exactly one verdict line:
-            VERDICT: PASS
-            or
-            VERDICT: CONCERNS — <one-line summary>
-            or
-            VERDICT: FAIL — <one-line reason>
-            """;
-
-        var readinessResult = await runner.RunAsync(
-            factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            readinessPrompt,
-            "Implementation Readiness",
-            ct
-        );
-
-        var decision = ParseReadinessDecision(readinessResult.Response);
-
-        switch (decision)
+        if (!config.Phases.SprintReview.ImplementationReadiness)
         {
-            case ReadinessDecision.Pass:
-                ui.ShowSuccess("Implementation readiness: PASS. Proceeding to story loop.");
-                break;
+            ui.ShowInfo("Phase 2.5 (Implementation Readiness Gate) skipped — disabled in config.");
+            runLogger.LogPhaseSkipped("implementation-readiness", "disabled in config");
+        }
+        else
+        {
+            ui.ShowPhase("Phase 2.5", "Implementation Readiness Gate");
 
-            case ReadinessDecision.Concerns:
-                if (IsReadinessConcernDirectlyActionable(readinessResult.Response))
-                {
-                    ui.ShowWarning(
-                        "Implementation readiness: CONCERNS. Applying direct story refinement (party-mode skipped)."
-                    );
+            var readinessPrompt = $"""
+                Run bmad-check-implementation-readiness for epic '{epic.Name}'.
+                Review prd.md, architecture.md, and all stories in this epic.
+                Produce detailed reasoning, then end with exactly one verdict line:
+                VERDICT: PASS
+                or
+                VERDICT: CONCERNS — <one-line summary>
+                or
+                VERDICT: FAIL — <one-line reason>
+                """;
 
-                    reviewNotes
-                        .Append("\n\n--- Readiness Concerns (Direct Refinement) ---\n")
-                        .Append(readinessResult.Response);
+            var readinessResult = await runner.RunAsync(
+                factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+                readinessPrompt,
+                "Implementation Readiness",
+                ct
+            );
 
-                    await RunStoryRefinementAsync(
-                        epic,
-                        partyResult.Response,
-                        readinessResult.Response,
-                        ct
-                    );
-                }
-                else
-                {
-                    ui.ShowWarning(
-                        "Implementation readiness: CONCERNS. Launching resolution party-mode..."
-                    );
-                    var concernsResolutionResult = await partyMode.RunAsync(
-                        personas,
-                        $"""
-                        Resolve the following implementation concerns before proceeding:
-                        <readiness-report>
-                        {readinessResult.Response}
-                        </readiness-report>
-                        """,
-                        "Readiness Concerns Resolution",
-                        ct
-                    );
+            var decision = ParseReadinessDecision(readinessResult.Response);
 
-                    reviewNotes
-                        .Append("\n\n--- Readiness Concerns Resolution ---\n")
-                        .Append(concernsResolutionResult.Response);
+            switch (decision)
+            {
+                case ReadinessDecision.Pass:
+                    ui.ShowSuccess("Implementation readiness: PASS. Proceeding to story loop.");
+                    break;
 
-                    await RunStoryRefinementAsync(
-                        epic,
-                        partyResult.Response,
-                        concernsResolutionResult.Response,
-                        ct
-                    );
-
-                    if (!ui.Confirm("Concerns resolved? Proceed to implementation?"))
-                        throw new OperationCanceledException(
-                            "Implementation readiness concerns not resolved."
+                case ReadinessDecision.Concerns:
+                    if (IsReadinessConcernDirectlyActionable(readinessResult.Response))
+                    {
+                        ui.ShowWarning(
+                            "Implementation readiness: CONCERNS. Applying direct story refinement (party-mode skipped)."
                         );
-                }
-                break;
 
-            case ReadinessDecision.Fail:
-                ui.ShowError("Implementation readiness: FAIL. Cannot proceed.");
-                ui.ShowInfo("Please address the failures and re-run the loop.");
-                throw new InvalidOperationException(
-                    $"Implementation readiness FAIL:\n{readinessResult.Response}"
-                );
+                        reviewNotes
+                            .Append("\n\n--- Readiness Concerns (Direct Refinement) ---\n")
+                            .Append(readinessResult.Response);
+
+                        await RunStoryRefinementAsync(
+                            epic,
+                            partyResult.Response,
+                            readinessResult.Response,
+                            ct
+                        );
+                    }
+                    else
+                    {
+                        ui.ShowWarning(
+                            "Implementation readiness: CONCERNS. Launching resolution party-mode..."
+                        );
+                        var concernsResolutionResult = await partyMode.RunAsync(
+                            personas,
+                            $"""
+                            Resolve the following implementation concerns before proceeding:
+                            <readiness-report>
+                            {readinessResult.Response}
+                            </readiness-report>
+                            """,
+                            "Readiness Concerns Resolution",
+                            ct
+                        );
+
+                        reviewNotes
+                            .Append("\n\n--- Readiness Concerns Resolution ---\n")
+                            .Append(concernsResolutionResult.Response);
+
+                        await RunStoryRefinementAsync(
+                            epic,
+                            partyResult.Response,
+                            concernsResolutionResult.Response,
+                            ct
+                        );
+
+                        if (!ui.Confirm("Concerns resolved? Proceed to implementation?"))
+                            throw new OperationCanceledException(
+                                "Implementation readiness concerns not resolved."
+                            );
+                    }
+                    break;
+
+                case ReadinessDecision.Fail:
+                    ui.ShowError("Implementation readiness: FAIL. Cannot proceed.");
+                    ui.ShowInfo("Please address the failures and re-run the loop.");
+                    throw new InvalidOperationException(
+                        $"Implementation readiness FAIL:\n{readinessResult.Response}"
+                    );
+            }
         }
 
         // Mark epic as started — sanitize branch name for valid git ref chars

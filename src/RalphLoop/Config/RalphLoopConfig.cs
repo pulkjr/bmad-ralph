@@ -33,6 +33,17 @@ public class RalphLoopConfig
     public CompactionConfig Compaction { get; set; } = new();
 
     /// <summary>
+    /// Per-phase enable/disable switches. Phases 1, 3, and 6 are non-disableable.
+    /// </summary>
+    public PhasesConfig Phases { get; set; } = new();
+
+    /// <summary>
+    /// Maximum minutes to wait for test.sh to complete before timing out.
+    /// Increase for large test suites or slow CI environments.
+    /// </summary>
+    public int TestTimeoutMinutes { get; set; } = 10;
+
+    /// <summary>
     /// Overrides the default app run command heuristic.
     /// If empty, the command is auto-detected from project type.
     /// </summary>
@@ -58,6 +69,38 @@ public static class StorageModes
 {
     public const string Sqlite = "sqlite";
     public const string File = "file";
+}
+
+public class PhasesConfig
+{
+    public PhaseSprintReviewConfig SprintReview { get; set; } = new();
+    public PhaseCodeQualityConfig CodeQualityGate { get; set; } = new();
+    public PhaseEpicCompletionConfig EpicCompletion { get; set; } = new();
+}
+
+public class PhaseSprintReviewConfig
+{
+    /// <summary>When false, Phase 2.5 (Architect implementation readiness check) is skipped.</summary>
+    public bool ImplementationReadiness { get; set; } = true;
+}
+
+public class PhaseCodeQualityConfig
+{
+    /// <summary>Master switch — when false, the entire Code Quality Gate (Phase 4) is skipped.</summary>
+    public bool Enabled { get; set; } = true;
+
+    public bool PerformancePedant { get; set; } = true; // Oliver
+    public bool LegacyLibrarian { get; set; } = true; // Vera
+    public bool TestArchaeologist { get; set; } = true; // Rex
+    public bool CoverageCritic { get; set; } = true; // Nora
+}
+
+public class PhaseEpicCompletionConfig
+{
+    public bool Security { get; set; } = true;
+    public bool Architect { get; set; } = true;
+    public bool ProductManager { get; set; } = true;
+    public bool UxDesigner { get; set; } = true;
 }
 
 public class CompactionConfig
@@ -89,6 +132,14 @@ public class ModelsConfig
     public string Architect { get; set; } = "claude-sonnet-4.6";
     public string ProductManager { get; set; } = "claude-sonnet-4.6";
     public string Qa { get; set; } = "claude-sonnet-4.6";
+
+    /// <summary>
+    /// Model for the Phase 4 Code Quality Gate reviewers (Oliver, Vera, Rex, Nora).
+    /// Defaults to the same value as <see cref="Qa"/> if not explicitly set.
+    /// The QA model conflict-check (must differ from Developer) does NOT apply here.
+    /// </summary>
+    public string CodeQuality { get; set; } = "claude-sonnet-4.6";
+
     public string Security { get; set; } = "gpt-5";
     public string TechWriter { get; set; } = "claude-sonnet-4.5";
     public string UxDesigner { get; set; } = "claude-sonnet-4.5";

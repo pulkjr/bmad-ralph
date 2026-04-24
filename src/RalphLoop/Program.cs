@@ -17,7 +17,7 @@ using Spectre.Console;
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 // Handle flags that should not require a project path.
-if (args.Length == 1 && args[0] is "--version" or "-v")
+if (args.Any(a => a is "--version" or "-v"))
 {
     var infoVersion =
         System
@@ -29,7 +29,7 @@ if (args.Length == 1 && args[0] is "--version" or "-v")
     return 0;
 }
 
-if (args.Length == 1 && args[0] is "--help" or "-h")
+if (args.Any(a => a is "--help" or "-h"))
 {
     AnsiConsole.Write(new FigletText("Ralph Loop").Color(Color.Blue));
     AnsiConsole.MarkupLine(
@@ -43,8 +43,36 @@ if (args.Length == 1 && args[0] is "--help" or "-h")
     );
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Options:[/]");
-    AnsiConsole.MarkupLine("  [grey]--version, -v[/]  Print the version and exit");
-    AnsiConsole.MarkupLine("  [grey]--help,    -h[/]  Print this help and exit");
+    AnsiConsole.MarkupLine("  [grey]--version, -v[/]                Print the version and exit");
+    AnsiConsole.MarkupLine("  [grey]--help,    -h[/]                Print this help and exit");
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-readiness-gate[/]        Skip Phase 2.5 (Implementation Readiness Gate)"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-code-quality[/]          Skip Phase 4 (entire Code Quality Gate)"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-performance-pedant[/]    Skip Oliver (Performance Pedant) in Phase 4"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-legacy-librarian[/]      Skip Vera (Legacy Librarian) in Phase 4"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-test-archaeologist[/]    Skip Rex (Test Archaeologist) in Phase 4"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-coverage-critic[/]       Skip Nora (Coverage Critic) in Phase 4"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-security-review[/]       Skip Security reviewer in Phase 5"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-architect-review[/]      Skip Architect reviewer in Phase 5"
+    );
+    AnsiConsole.MarkupLine("  [grey]--skip-pm-review[/]             Skip PM reviewer in Phase 5");
+    AnsiConsole.MarkupLine(
+        "  [grey]--skip-ux-review[/]             Skip UX Designer reviewer in Phase 5"
+    );
     return 0;
 }
 
@@ -52,8 +80,21 @@ AnsiConsole.Write(new FigletText("Ralph Loop").Color(Color.Blue));
 AnsiConsole.MarkupLine("[grey]BMAD Agentic Development Loop — powered by GitHub Copilot SDK[/]");
 AnsiConsole.WriteLine();
 
-// ── Resolve project path (first arg or cwd) ────────────────────────────────
-var projectPath = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
+// ── Resolve project path (first non-flag arg or cwd) ─────────────────────
+var skipFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+{
+    "--skip-readiness-gate",
+    "--skip-code-quality",
+    "--skip-performance-pedant",
+    "--skip-legacy-librarian",
+    "--skip-test-archaeologist",
+    "--skip-coverage-critic",
+    "--skip-security-review",
+    "--skip-architect-review",
+    "--skip-pm-review",
+    "--skip-ux-review",
+};
+var projectPath = args.FirstOrDefault(a => !a.StartsWith("--")) ?? Directory.GetCurrentDirectory();
 
 if (!Directory.Exists(projectPath))
 {
@@ -72,6 +113,9 @@ catch (Exception ex)
     AnsiConsole.MarkupLine($"[red]Failed to load ralph-loop.json: {ex.Message}[/]");
     return 1;
 }
+
+// ── Apply CLI phase-skip flags (override JSON config) ─────────────────────
+CliPhaseFlags.Apply(args, config);
 
 // ── Validate prerequisites ─────────────────────────────────────────────────
 var prereqErrors = new List<string>();

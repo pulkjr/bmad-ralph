@@ -108,6 +108,21 @@ public sealed class RunLogger
         );
     }
 
+    public void LogPhaseSkipped(string phase, string reason)
+    {
+        if (!_enabled)
+            return;
+        Append(
+            new
+            {
+                @event = "phase_skipped",
+                timestamp = Ts(),
+                phase,
+                reason,
+            }
+        );
+    }
+
     public void LogError(string context, string message)
     {
         if (!_enabled)

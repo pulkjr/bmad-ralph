@@ -185,75 +185,103 @@ public class EpicCompletionPhase(
         var failures = new List<string>();
 
         // Security review
-        ui.ShowSection("Security Review");
-        var secResult = await runner.RunAsync(
-            factory.ForSecurity(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            $"""
-            Conduct a full security review of the project for epic '{epic.Name}'.
-            Use devskim, semgrep, or manual analysis to check for vulnerabilities.
-            Review for: OWASP Top 10, authentication/authorization, injection, secrets exposure.
-            {changedFilesContext}
-            List all findings with PASS or FAIL per finding.{verdictInstruction}
-            """,
-            "Security Analyst",
-            ct
-        );
-
-        if (!IsAllPassed(secResult.Response))
-            failures.Add($"Security: {secResult.Response}");
-
-        // Architecture review
-        ui.ShowSection("Architecture Review");
-        var archResult = await runner.RunAsync(
-            factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            $"""
-            Review the implemented code for epic '{epic.Name}' against {artifacts}/architecture.md.
-            Check for violations, deviations, and architectural drift.
-            {changedFilesContext}
-            List all findings with PASS or FAIL per finding.{verdictInstruction}
-            """,
-            "Architect (Winston)",
-            ct
-        );
-
-        if (!IsAllPassed(archResult.Response))
-            failures.Add($"Architecture: {archResult.Response}");
-
-        // Product Manager review
-        ui.ShowSection("PRD Compliance Review");
-        var pmResult = await runner.RunAsync(
-            factory.ForProductManager(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-            $"""
-            Review the implemented epic '{epic.Name}' against {artifacts}/prd.md.
-            Validate that all functional and non-functional requirements are met.
-            Flag any requirements that are missing, incomplete, or violated.
-            {changedFilesContext}{verdictInstruction}
-            """,
-            "Product Manager (John)",
-            ct
-        );
-
-        if (!IsAllPassed(pmResult.Response))
-            failures.Add($"PRD Compliance: {pmResult.Response}");
-
-        // UX review (if applicable)
-        if (hasUxSpec)
+        if (config.Phases.EpicCompletion.Security)
         {
-            ui.ShowSection("UX Compliance Review");
-            var uxResult = await runner.RunAsync(
-                factory.ForUxDesigner(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+            ui.ShowSection("Security Review");
+            var secResult = await runner.RunAsync(
+                factory.ForSecurity(AgentRunner.ApproveAll(), runner.UserInputHandler()),
                 $"""
-                Review the UX implementation for epic '{epic.Name}' against {artifacts}/ux-design-specification.md.
-                Use agent-tui to run the application and validate screen states.
+                Conduct a full security review of the project for epic '{epic.Name}'.
+                Use devskim, semgrep, or manual analysis to check for vulnerabilities.
+                Review for: OWASP Top 10, authentication/authorization, injection, secrets exposure.
                 {changedFilesContext}
                 List all findings with PASS or FAIL per finding.{verdictInstruction}
                 """,
-                "UX Designer (Sally)",
+                "Security Analyst",
                 ct
             );
 
-            if (!IsAllPassed(uxResult.Response))
-                failures.Add($"UX Compliance: {uxResult.Response}");
+            if (!IsAllPassed(secResult.Response))
+                failures.Add($"Security: {secResult.Response}");
+        }
+        else
+        {
+            ui.ShowInfo("Security review skipped — disabled in config.");
+        }
+
+        // Architecture review
+        if (config.Phases.EpicCompletion.Architect)
+        {
+            ui.ShowSection("Architecture Review");
+            var archResult = await runner.RunAsync(
+                factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+                $"""
+                Review the implemented code for epic '{epic.Name}' against {artifacts}/architecture.md.
+                Check for violations, deviations, and architectural drift.
+                {changedFilesContext}
+                List all findings with PASS or FAIL per finding.{verdictInstruction}
+                """,
+                "Architect (Winston)",
+                ct
+            );
+
+            if (!IsAllPassed(archResult.Response))
+                failures.Add($"Architecture: {archResult.Response}");
+        }
+        else
+        {
+            ui.ShowInfo("Architecture review skipped — disabled in config.");
+        }
+
+        // Product Manager review
+        if (config.Phases.EpicCompletion.ProductManager)
+        {
+            ui.ShowSection("PRD Compliance Review");
+            var pmResult = await runner.RunAsync(
+                factory.ForProductManager(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+                $"""
+                Review the implemented epic '{epic.Name}' against {artifacts}/prd.md.
+                Validate that all functional and non-functional requirements are met.
+                Flag any requirements that are missing, incomplete, or violated.
+                {changedFilesContext}{verdictInstruction}
+                """,
+                "Product Manager (John)",
+                ct
+            );
+
+            if (!IsAllPassed(pmResult.Response))
+                failures.Add($"PRD Compliance: {pmResult.Response}");
+        }
+        else
+        {
+            ui.ShowInfo("Product Manager review skipped — disabled in config.");
+        }
+
+        // UX review (if applicable and not disabled)
+        if (hasUxSpec)
+        {
+            if (config.Phases.EpicCompletion.UxDesigner)
+            {
+                ui.ShowSection("UX Compliance Review");
+                var uxResult = await runner.RunAsync(
+                    factory.ForUxDesigner(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+                    $"""
+                    Review the UX implementation for epic '{epic.Name}' against {artifacts}/ux-design-specification.md.
+                    Use agent-tui to run the application and validate screen states.
+                    {changedFilesContext}
+                    List all findings with PASS or FAIL per finding.{verdictInstruction}
+                    """,
+                    "UX Designer (Sally)",
+                    ct
+                );
+
+                if (!IsAllPassed(uxResult.Response))
+                    failures.Add($"UX Compliance: {uxResult.Response}");
+            }
+            else
+            {
+                ui.ShowInfo("UX Designer review skipped — disabled in config.");
+            }
         }
 
         return failures;

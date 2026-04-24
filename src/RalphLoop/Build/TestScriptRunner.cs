@@ -8,7 +8,7 @@ public record TestResult(bool Passed, string Output, int ExitCode);
 /// Runs test.sh from the project root and validates exit code 0.
 /// If test.sh doesn't exist, reports the condition so the developer can write it.
 /// </summary>
-public class TestScriptRunner(string projectPath)
+public class TestScriptRunner(string projectPath, int testTimeoutMinutes = 10)
 {
     private readonly string _scriptPath = Path.Combine(projectPath, "test.sh");
 
@@ -36,8 +36,6 @@ public class TestScriptRunner(string projectPath)
                 You may NOT modify test.sh once written — only fix the application code.
                 """;
 
-    private const int DefaultTimeoutMinutes = 10;
-
     public async Task<TestResult> RunAsync(CancellationToken ct = default)
     {
         if (!Exists)
@@ -57,9 +55,9 @@ public class TestScriptRunner(string projectPath)
         using var process =
             Process.Start(psi) ?? throw new InvalidOperationException("Failed to start bash");
 
-        // Hard-cap: cancel after DefaultTimeoutMinutes even if the caller never cancels.
+        // Hard-cap: cancel after testTimeoutMinutes even if the caller never cancels.
         using var timeoutCts = new CancellationTokenSource(
-            TimeSpan.FromMinutes(DefaultTimeoutMinutes)
+            TimeSpan.FromMinutes(testTimeoutMinutes)
         );
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
         var linked = linkedCts.Token;
@@ -82,7 +80,7 @@ public class TestScriptRunner(string projectPath)
             // Timeout (not caller cancellation) — kill the process and surface as timeout
             process.Kill(entireProcessTree: true);
             throw new OperationCanceledException(
-                $"test.sh timed out after {DefaultTimeoutMinutes} minutes.",
+                $"test.sh timed out after {testTimeoutMinutes} minutes.",
                 timeoutCts.Token
             );
         }

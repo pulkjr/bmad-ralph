@@ -1,6 +1,7 @@
 using GitHub.Copilot.SDK;
 using RalphLoop.Agents;
 using RalphLoop.Agents.Personas;
+using RalphLoop.Config;
 using RalphLoop.Data.Models;
 using RalphLoop.Git;
 using RalphLoop.UI;
@@ -28,7 +29,8 @@ public class CodeQualityGatePhase(
     SessionFactory factory,
     PartyModeSession partyMode,
     GitManager git,
-    ConsoleUI ui
+    ConsoleUI ui,
+    RalphLoop.Config.RalphLoopConfig config
 )
 {
     private const int MaxSwarmAttempts = 2;
@@ -173,21 +175,40 @@ public class CodeQualityGatePhase(
             ct
         );
 
-        var results = await Task.WhenAll(oliverTask, veraTask, rexTask, noraTask);
+        // Show info for individually-disabled reviewers
+        if (!config.Phases.CodeQualityGate.PerformancePedant)
+            ui.ShowInfo("Oliver (Performance Pedant) skipped — disabled in config.");
+        if (!config.Phases.CodeQualityGate.LegacyLibrarian)
+            ui.ShowInfo("Vera (Legacy Librarian) skipped — disabled in config.");
+        if (!config.Phases.CodeQualityGate.TestArchaeologist)
+            ui.ShowInfo("Rex (Test Archaeologist) skipped — disabled in config.");
+        if (!config.Phases.CodeQualityGate.CoverageCritic)
+            ui.ShowInfo("Nora (Coverage Critic) skipped — disabled in config.");
+
+        var activeTasks = new List<(Task<AgentResult> Task, string Label)>();
+        if (config.Phases.CodeQualityGate.PerformancePedant)
+            activeTasks.Add((oliverTask, "Performance (Oliver)"));
+        if (config.Phases.CodeQualityGate.LegacyLibrarian)
+            activeTasks.Add((veraTask, "Legacy Drift (Vera)"));
+        if (config.Phases.CodeQualityGate.TestArchaeologist)
+            activeTasks.Add((rexTask, "Test Coverage (Rex)"));
+        if (config.Phases.CodeQualityGate.CoverageCritic)
+            activeTasks.Add((noraTask, "Coverage Gaps (Nora)"));
+
+        if (activeTasks.Count == 0)
+        {
+            ui.ShowInfo("All Phase 4 reviewers disabled — Code Quality Gate skipped.");
+            return [];
+        }
+
+        var results = await Task.WhenAll(activeTasks.Select(t => t.Task));
 
         var failures = new List<string>();
-
-        if (!EpicCompletionPhase.IsAllPassed(results[0].Response))
-            failures.Add($"Performance (Oliver): {results[0].Response}");
-
-        if (!EpicCompletionPhase.IsAllPassed(results[1].Response))
-            failures.Add($"Legacy Drift (Vera): {results[1].Response}");
-
-        if (!EpicCompletionPhase.IsAllPassed(results[2].Response))
-            failures.Add($"Test Coverage (Rex): {results[2].Response}");
-
-        if (!EpicCompletionPhase.IsAllPassed(results[3].Response))
-            failures.Add($"Coverage Gaps (Nora): {results[3].Response}");
+        for (var i = 0; i < activeTasks.Count; i++)
+        {
+            if (!EpicCompletionPhase.IsAllPassed(results[i].Response))
+                failures.Add($"{activeTasks[i].Label}: {results[i].Response}");
+        }
 
         return failures;
     }
