@@ -234,8 +234,8 @@ catch (OperationCanceledException)
 }
 catch (InvalidOperationException ex)
 {
-    // Thrown by phases (e.g. readiness FAIL) after already displaying the error via ui.
-    // Log for diagnostics but do not print a stack trace — the user already saw the message.
+    // Show the error — some phase errors (e.g. git branch failures) throw without prior UI output.
+    ui.ShowError(ex.Message);
     sp.GetRequiredService<RunLogger>().LogError("phase-fail", ex.ToString());
     return 1;
 }

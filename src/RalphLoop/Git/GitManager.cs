@@ -36,16 +36,36 @@ public class GitManager(
                 nameof(branchName)
             );
 
-        // Checkout existing branch if it exists; create it only if it doesn't.
-        // Each argument is a separate entry in ArgumentList — shell metacharacters in
-        // branchName are treated as literals, not interpreted by the shell.
-        var checkout = await RunAsync("git", ["checkout", branchName], projectPath);
-        if (checkout.ExitCode != 0)
+        // No-op if already on the target branch.
+        var current = await GetCurrentBranchAsync();
+        if (current == branchName)
+            return;
+
+        // Determine whether the branch already exists in the local repo.
+        var refCheck = await RunAsync(
+            "git",
+            ["show-ref", "--verify", "--quiet", $"refs/heads/{branchName}"],
+            projectPath
+        );
+
+        if (refCheck.ExitCode == 0)
         {
+            // Branch exists — check it out.  A non-zero exit here almost always means
+            // the working tree is dirty (local changes would be overwritten).
+            var checkout = await RunAsync("git", ["checkout", branchName], projectPath);
+            if (checkout.ExitCode != 0)
+                throw new InvalidOperationException(
+                    $"Cannot switch to branch '{branchName}': {checkout.StdErr.Trim()}\n"
+                        + "Hint: commit or stash your changes, then re-run ralph-loop."
+                );
+        }
+        else
+        {
+            // Branch does not exist — create it from the current HEAD.
             var create = await RunAsync("git", ["checkout", "-b", branchName], projectPath);
             if (create.ExitCode != 0)
                 throw new InvalidOperationException(
-                    $"Failed to create branch '{branchName}': {create.StdErr}"
+                    $"Failed to create branch '{branchName}': {create.StdErr.Trim()}"
                 );
         }
     }
