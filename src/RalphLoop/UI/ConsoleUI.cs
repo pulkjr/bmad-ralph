@@ -13,20 +13,26 @@ public class ConsoleUI
 {
     public bool Confirm(string question, bool defaultValue = true)
     {
+        Bell();
         return AnsiConsole.Confirm(question, defaultValue);
     }
 
     public string Ask(string question)
     {
+        Bell();
         return AnsiConsole.Ask<string>(question);
     }
 
     public string AskChoice(string question, IEnumerable<string> choices)
     {
+        Bell();
         return AnsiConsole.Prompt(
             new SelectionPrompt<string>().Title(question).AddChoices(choices)
         );
     }
+
+    /// <summary>Emits the ASCII BEL character to alert an unfocused terminal.</summary>
+    private static void Bell() => Console.Write('\a');
 
     public void ShowInfo(string message) =>
         AnsiConsole.MarkupLine($"[cyan]{Markup.Escape(message)}[/]");
@@ -105,6 +111,7 @@ public class ConsoleUI
 
     public Task<string> WaitForUserInputAsync(string prompt)
     {
+        Bell();
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[bold magenta]⏸  Agent is asking for your input:[/]");
         AnsiConsole.MarkupLine($"[white]{Markup.Escape(prompt)}[/]");
