@@ -5,7 +5,11 @@ namespace RalphLoop.Git;
 /// <summary>
 /// Manages git operations for the ralph loop: branch per epic, entire.io commits, FF merge.
 /// </summary>
-public class GitManager(string projectPath, int timeoutSeconds = 60)
+public class GitManager(
+    string projectPath,
+    int timeoutSeconds = 60,
+    bool suppressInteractivePrompts = true
+)
 {
     public async Task<bool> IsEntireEnabledAsync()
     {
@@ -178,7 +182,7 @@ public class GitManager(string projectPath, int timeoutSeconds = 60)
         return string.IsNullOrEmpty(slug) ? "epic-branch" : slug;
     }
 
-    private static async Task<ProcessResult> RunWithStdinAsync(
+    private async Task<ProcessResult> RunWithStdinAsync(
         string executable,
         string[] args,
         string workDir,
@@ -198,6 +202,8 @@ public class GitManager(string projectPath, int timeoutSeconds = 60)
         };
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
+        if (suppressInteractivePrompts)
+            psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
 
         using var process =
             Process.Start(psi)
@@ -224,11 +230,7 @@ public class GitManager(string projectPath, int timeoutSeconds = 60)
         return new ProcessResult(process.ExitCode, await stdOutTask, await stdErrTask);
     }
 
-    private static async Task<ProcessResult> RunAsync(
-        string executable,
-        string[] args,
-        string workDir
-    )
+    private async Task<ProcessResult> RunAsync(string executable, string[] args, string workDir)
     {
         var psi = new ProcessStartInfo
         {
@@ -241,6 +243,8 @@ public class GitManager(string projectPath, int timeoutSeconds = 60)
         };
         foreach (var arg in args)
             psi.ArgumentList.Add(arg);
+        if (suppressInteractivePrompts)
+            psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
 
         using var process =
             Process.Start(psi)

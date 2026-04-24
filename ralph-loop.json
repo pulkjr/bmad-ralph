@@ -19,7 +19,8 @@
   "git": {
     "autoCommit": true,
     "mergeStrategy": "fast-forward",
-    "useEntire": true
+    "useEntire": true,
+    "suppressInteractivePrompts": true
   },
   "maxQaFailsBeforeSwarm": 3
 }

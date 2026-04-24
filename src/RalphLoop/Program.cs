@@ -129,7 +129,11 @@ services.AddSingleton<StoryRepository>();
 services.AddSingleton<FileStoreContext>();
 
 // Git + build
-services.AddSingleton(_ => new GitManager(config.ProjectPath, config.Git.TimeoutSeconds));
+services.AddSingleton(_ => new GitManager(
+    config.ProjectPath,
+    config.Git.TimeoutSeconds,
+    config.Git.SuppressInteractivePrompts
+));
 services.AddSingleton(_ => new TestScriptRunner(config.ProjectPath));
 services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
 

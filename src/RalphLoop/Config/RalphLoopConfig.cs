@@ -106,4 +106,13 @@ public class GitConfig
     /// Prevents indefinite hangs caused by slow pre-commit hooks (e.g. entire).
     /// </summary>
     public int TimeoutSeconds { get; set; } = 60;
+
+    /// <summary>
+    /// When true, sets GIT_TERMINAL_PROMPT=0 when spawning git child processes.
+    /// This prevents interactive git hooks (e.g. entire's "Link this commit?"
+    /// prompt) from blocking programmatic commits. The entire hook will still
+    /// auto-link commits to sessions — it just won't ask interactively.
+    /// Defaults to true. Set to false only if you need hooks to prompt.
+    /// </summary>
+    public bool SuppressInteractivePrompts { get; set; } = true;
 }
