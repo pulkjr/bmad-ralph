@@ -74,6 +74,9 @@ public sealed class GitManagerBranchTests : IDisposable
         );
 
         Assert.Contains("commit", ex.Message, StringComparison.OrdinalIgnoreCase);
+        // Regression: v0.1.5 fell through to `git checkout -b` and surfaced the cryptic
+        // git error "a branch named '...' already exists" instead of an actionable hint.
+        Assert.DoesNotContain("already exists", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── Branch does not exist — must create and switch to it ─────────────────
@@ -87,6 +90,37 @@ public sealed class GitManagerBranchTests : IDisposable
 
         var branch = await sut.GetCurrentBranchAsync();
         Assert.Equal("epic-brand-new", branch);
+    }
+
+    // ── Branch exists, not currently on it, clean working tree — must check out ─
+
+    /// <summary>
+    /// Regression test for the v0.1.5 crash: when a branch already exists from a prior run
+    /// and the working tree is clean, <see cref="GitManager.CreateEpicBranchAsync"/> must
+    /// silently check it out rather than throwing. The old code tried <c>git checkout -b</c>
+    /// as a fallback, which git rejects with "a branch named '...' already exists".
+    /// </summary>
+    [Fact]
+    public async Task CreateEpicBranchAsync_BranchExistsAndNotCurrentlyOnIt_ChecksOutSuccessfully()
+    {
+        // Arrange: create the epic branch and make a commit on it so it has its own history
+        RunGit("checkout -b epic-resume");
+        File.WriteAllText(Path.Combine(_repoPath, "feature.txt"), "epic work");
+        RunGit("add .");
+        RunGit("commit -m \"epic commit\"");
+
+        // Switch back to the default branch (clean working tree)
+        var defaultBranch = GetDefaultBranch();
+        RunGit($"checkout {defaultBranch}");
+
+        var sut = new GitManager(_repoPath);
+
+        // Act — simulates a second run of ralph-loop after the branch was already created
+        await sut.CreateEpicBranchAsync("epic-resume");
+
+        // Assert: we are on the epic branch and no exception was thrown
+        var branch = await sut.GetCurrentBranchAsync();
+        Assert.Equal("epic-resume", branch);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
