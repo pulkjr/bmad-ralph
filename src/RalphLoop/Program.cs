@@ -204,9 +204,14 @@ services.AddSingleton(_ => new GitManager(
 services.AddSingleton(_ => new TestScriptRunner(config.ProjectPath, config.TestTimeoutMinutes));
 services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
 
-// Copilot SDK
+// Copilot SDK — --allow-all grants yolo rights to all agents (tools, paths, URLs)
 services.AddSingleton(_ => new CopilotClient(
-    new CopilotClientOptions { Cwd = config.ProjectPath, LogLevel = CopilotLogLevel.Default }
+    new CopilotClientOptions
+    {
+        Cwd = config.ProjectPath,
+        LogLevel = CopilotLogLevel.Default,
+        CliArgs = ["--allow-all"],
+    }
 ));
 
 // Agents
