@@ -14,6 +14,8 @@ namespace RalphLoop.Loop.Phases;
 /// Phase 1: Sprint Planning.
 /// Checks ledger.db, ensures an active sprint exists, and runs bmad-sprint-planning.
 /// In file-based storage mode, reads sprint-status.yaml and creates SQLite records from it.
+/// Story .md files are NOT created here — call <see cref="CreateEpicStoriesAsync"/> per epic
+/// before Phase 2 to ensure files are ready for the readiness check.
 /// </summary>
 public class SprintPlanningPhase(
     SessionFactory factory,
@@ -225,27 +227,8 @@ public class SprintPlanningPhase(
             var storyStatus = MapYamlStatusToStoryStatus(storyEntry.Status);
             var filePath = sprintStatus.ResolveStoryFilePath(storyKey);
 
-            // Step e.1: create story file if backlog + missing (never for done stories)
-            if (
-                !string.Equals(
-                    storyStatus,
-                    StoryStatus.Complete,
-                    StringComparison.OrdinalIgnoreCase
-                )
-                && string.Equals(storyEntry.Status, "backlog", StringComparison.OrdinalIgnoreCase)
-                && !File.Exists(filePath)
-            )
-            {
-                ui.ShowInfo($"  Story '{storyKey}' is backlog — running bmad-create-story...");
-                await RunCreateStorySkillAsync(storyKey, filePath, ct);
-
-                if (File.Exists(filePath))
-                    await sprintStatus.UpdateStatusAsync(storyKey, "ready-for-dev");
-                else
-                    ui.ShowWarning(
-                        $"  bmad-create-story did not create '{filePath}' — story skipped."
-                    );
-            }
+            // Step e.1: skip story file creation — handled per-epic by CreateEpicStoriesAsync
+            //           before Phase 2, so the readiness check sees fully-formed story files.
 
             // Skip non-done stories whose file is still missing (done stories are always inserted)
             if (
@@ -315,6 +298,48 @@ public class SprintPlanningPhase(
             );
 
         return activeSprint;
+    }
+
+    // ─── Per-epic story creation (called from orchestrator before Phase 2) ──────
+
+    /// <summary>
+    /// Creates missing story <c>.md</c> files for all backlog stories in the given epic.
+    /// Only applies to file-backed stories (<see cref="Story.IsFileBacked"/>).
+    /// SQLite-mode stories (no <c>FilePath</c>) are skipped — their content already lives in ledger.db.
+    /// Intended to be called per-epic from the orchestrator just before Phase 2 so that the
+    /// implementation readiness check (or party-mode review) operates on fully-formed story files.
+    /// </summary>
+    public async Task CreateEpicStoriesAsync(
+        Epic epic,
+        IReadOnlyList<Story> stories,
+        CancellationToken ct
+    )
+    {
+        if (config.StorageMode != StorageModes.File)
+            return;
+
+        var sprintStatus = await fileStore.GetAsync();
+
+        foreach (var story in stories)
+        {
+            if (!story.IsFileBacked || File.Exists(story.FilePath))
+                continue;
+
+            // Derive the story key from the file path (basename without extension)
+            var storyKey = Path.GetFileNameWithoutExtension(story.FilePath);
+
+            ui.ShowInfo(
+                $"  Story '{storyKey}' (epic '{epic.Name}') — running bmad-create-story..."
+            );
+            await RunCreateStorySkillAsync(storyKey, story.FilePath, ct);
+
+            if (File.Exists(story.FilePath))
+                await sprintStatus.UpdateStatusAsync(storyKey, "ready-for-dev");
+            else
+                ui.ShowWarning(
+                    $"  bmad-create-story did not create '{story.FilePath}' — story skipped."
+                );
+        }
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────

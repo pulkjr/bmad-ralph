@@ -13,6 +13,7 @@ public sealed class PhasesConfigTests
     {
         var cfg = new PhasesConfig();
 
+        Assert.False(cfg.SprintReview.PartyMode);
         Assert.True(cfg.SprintReview.ImplementationReadiness);
         Assert.True(cfg.CodeQualityGate.Enabled);
         Assert.True(cfg.CodeQualityGate.PerformancePedant);
@@ -77,6 +78,25 @@ public sealed class PhasesConfigTests
         Assert.True(deserialized.EpicCompletion.Architect);
         Assert.False(deserialized.EpicCompletion.ProductManager);
         Assert.True(deserialized.EpicCompletion.UxDesigner);
+    }
+
+    [Fact]
+    public void SprintReviewConfig_PartyModeTrue_RoundTrips_ThroughJsonSerializer()
+    {
+        var original = new PhaseSprintReviewConfig
+        {
+            PartyMode = true,
+            ImplementationReadiness = false,
+        };
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+        var json = JsonSerializer.Serialize(original, options);
+        var deserialized = JsonSerializer.Deserialize<PhaseSprintReviewConfig>(json, options)!;
+
+        Assert.True(deserialized.PartyMode);
+        Assert.False(deserialized.ImplementationReadiness);
     }
 
     // ── Reviewer flags independent of Enabled ─────────────────────────────────

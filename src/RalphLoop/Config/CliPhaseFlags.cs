@@ -20,6 +20,9 @@ public static class CliPhaseFlags
                 case "--skip-readiness-gate":
                     config.Phases.SprintReview.ImplementationReadiness = false;
                     break;
+                case "--party-mode":
+                    config.Phases.SprintReview.PartyMode = true;
+                    break;
                 case "--skip-code-quality":
                     config.Phases.CodeQualityGate.Enabled = false;
                     break;

@@ -33,6 +33,95 @@ public class SprintReviewPhase(
         CancellationToken ct = default
     )
     {
+        if (config.Phases.SprintReview.PartyMode)
+            return await RunPartyModeAsync(sprint, epic, storyList, ct);
+
+        return await RunReadinessGateAsync(epic, storyList, ct);
+    }
+
+    // ─── Default path: single-agent readiness check ───────────────────────────
+
+    private async Task<SprintReviewResult> RunReadinessGateAsync(
+        Epic epic,
+        IReadOnlyList<Story> storyList,
+        CancellationToken ct
+    )
+    {
+        ui.ShowPhase("Phase 2", $"Implementation Readiness Gate — Epic: {epic.Name}");
+
+        var readinessSummary = string.Empty;
+
+        if (!config.Phases.SprintReview.ImplementationReadiness)
+        {
+            ui.ShowInfo("Phase 2 (Implementation Readiness Gate) skipped — disabled in config.");
+            runLogger.LogPhaseSkipped("implementation-readiness", "disabled in config");
+        }
+        else
+        {
+            var readinessResult = await runner.RunAsync(
+                factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+                BuildReadinessPrompt(epic),
+                "Implementation Readiness",
+                ct
+            );
+
+            readinessSummary = BuildReadinessSummary(
+                readinessResult.Response,
+                epic.Name,
+                storyList
+            );
+
+            var decision = ParseReadinessDecision(readinessResult.Response);
+
+            switch (decision)
+            {
+                case ReadinessDecision.Pass:
+                    ui.ShowSuccess("Implementation readiness: PASS. Proceeding to story loop.");
+                    break;
+
+                case ReadinessDecision.Concerns:
+                    ui.ShowWarning(
+                        "Implementation readiness: CONCERNS. Applying direct story refinement..."
+                    );
+                    await RunStoryRefinementAsync(
+                        epic,
+                        readinessResult.Response,
+                        readinessResult.Response,
+                        ct
+                    );
+                    if (!ui.Confirm("Concerns addressed? Proceed to implementation?"))
+                        throw new OperationCanceledException(
+                            "Implementation readiness concerns not resolved."
+                        );
+                    break;
+
+                case ReadinessDecision.Fail:
+                    ui.ShowError("Implementation readiness: FAIL. Cannot proceed.");
+                    ui.ShowInfo("Please address the failures and re-run the loop.");
+                    throw new InvalidOperationException(
+                        $"Implementation readiness FAIL:\n{readinessResult.Response}"
+                    );
+            }
+        }
+
+        var branchName = SlugifyBranchName($"epic/{epic.Name}");
+        await epics.MarkStartedAsync(epic.Id, branchName);
+        epic.Status = EpicStatus.InProgress;
+        epic.BranchName = branchName;
+        ui.ShowSuccess($"Epic '{epic.Name}' marked as started. Branch: {branchName}");
+
+        return new SprintReviewResult(epic, readinessSummary);
+    }
+
+    // ─── Opt-in path: multi-agent party-mode (existing behaviour) ────────────
+
+    private async Task<SprintReviewResult> RunPartyModeAsync(
+        Data.Models.Sprint sprint,
+        Epic epic,
+        IReadOnlyList<Story> storyList,
+        CancellationToken ct
+    )
+    {
         ui.ShowPhase("Phase 2", $"Sprint Review — Epic: {epic.Name}");
 
         var hasUxSpec = File.Exists(
@@ -182,20 +271,9 @@ public class SprintReviewPhase(
         {
             ui.ShowPhase("Phase 2.5", "Implementation Readiness Gate");
 
-            var readinessPrompt = $"""
-                Run bmad-check-implementation-readiness for epic '{epic.Name}'.
-                Review prd.md, architecture.md, and all stories in this epic.
-                Produce detailed reasoning, then end with exactly one verdict line:
-                VERDICT: PASS
-                or
-                VERDICT: CONCERNS — <one-line summary>
-                or
-                VERDICT: FAIL — <one-line reason>
-                """;
-
             var readinessResult = await runner.RunAsync(
                 factory.ForArchitect(AgentRunner.ApproveAll(), runner.UserInputHandler()),
-                readinessPrompt,
+                BuildReadinessPrompt(epic),
                 "Implementation Readiness",
                 ct
             );
@@ -566,6 +644,48 @@ public class SprintReviewPhase(
             .ThenBy(s => s.Id)
             .Select(s => $"  {s.OrderIndex, 3}. [{s.Status}] {s.Name}");
         return string.Join("\n", rows);
+    }
+
+    private string BuildReadinessPrompt(Epic epic) =>
+        $"""
+            Run bmad-check-implementation-readiness for epic '{epic.Name}'.
+            Review prd.md, architecture.md, and all stories in this epic
+            (located in '{config.PlanningArtifactsPath}' and '{config.ImplementationArtifactsPath}').
+            Produce detailed reasoning, then end with exactly one verdict line:
+            VERDICT: PASS
+            or
+            VERDICT: CONCERNS — <one-line summary>
+            or
+            VERDICT: FAIL — <one-line reason>
+            """;
+
+    /// <summary>
+    /// Builds a compact (&lt;500 token) summary of the readiness check for Phase 3 developer prompts.
+    /// Analogous to <see cref="BuildReviewSummary"/> for the party-mode path.
+    /// </summary>
+    internal static string BuildReadinessSummary(
+        string readinessResponse,
+        string epicName,
+        IReadOnlyList<Story> storyList
+    )
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"Implementation readiness check for epic '{epicName}'. ");
+
+        // Extract first VERDICT: line for the summary header
+        var verdictLine = readinessResponse
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(l =>
+                l.TrimStart().StartsWith("VERDICT:", StringComparison.OrdinalIgnoreCase)
+            );
+
+        if (verdictLine is not null)
+            sb.AppendLine(verdictLine.Trim());
+
+        if (storyList.Count > 0)
+            sb.AppendLine($"Stories reviewed: {string.Join(", ", storyList.Select(s => s.Name))}.");
+
+        return sb.ToString().Trim();
     }
 
     internal static ReadinessDecision ParseReadinessDecision(string response)

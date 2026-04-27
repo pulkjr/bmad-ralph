@@ -91,6 +91,10 @@ public class RalphLoopOrchestrator(
         // Show current story status table so the operator has an instant snapshot
         ui.ShowEpicStatusTable(epic.Name, allStories);
 
+        // Create any missing story .md files for this epic before Phase 2 runs,
+        // so the readiness check (or party-mode review) sees fully-formed story files.
+        await phase1.CreateEpicStoriesAsync(epic, allStories, ct);
+
         SprintReviewResult reviewResult;
 
         if (epic.Status == EpicStatus.InProgress)

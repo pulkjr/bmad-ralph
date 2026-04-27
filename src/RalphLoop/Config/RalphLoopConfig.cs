@@ -80,7 +80,22 @@ public class PhasesConfig
 
 public class PhaseSprintReviewConfig
 {
-    /// <summary>When false, Phase 2.5 (Architect implementation readiness check) is skipped.</summary>
+    /// <summary>
+    /// When false (default): <c>bmad-check-implementation-readiness</c> runs as the Phase 2 gate
+    /// (single Architect agent — faster and cheaper).
+    /// When true: multi-agent party-mode confidence vote runs as Phase 2 instead
+    /// (existing behaviour), followed by Phase 2.5 readiness check if
+    /// <see cref="ImplementationReadiness"/> is also true.
+    /// </summary>
+    public bool PartyMode { get; set; } = false;
+
+    /// <summary>
+    /// When <see cref="PartyMode"/> is false (default): controls whether the readiness
+    /// check runs at all — set to false to skip Phase 2 entirely.
+    /// When <see cref="PartyMode"/> is true: controls whether Phase 2.5
+    /// (Architect implementation readiness check) also runs after party-mode.
+    /// Defaults to true.
+    /// </summary>
     public bool ImplementationReadiness { get; set; } = true;
 }
 

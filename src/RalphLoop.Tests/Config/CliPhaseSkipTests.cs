@@ -9,6 +9,17 @@ namespace RalphLoop.Tests.Config;
 /// </summary>
 public sealed class CliPhaseSkipTests
 {
+    // ── --party-mode ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Apply_PartyMode_SetsPartyModeTrue()
+    {
+        var config = new RalphLoopConfig();
+        CliPhaseFlags.Apply(["--party-mode"], config);
+
+        Assert.True(config.Phases.SprintReview.PartyMode);
+    }
+
     // ── --skip-readiness-gate ──────────────────────────────────────────────────
 
     [Fact]
