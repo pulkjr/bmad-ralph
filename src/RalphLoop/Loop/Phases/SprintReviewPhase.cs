@@ -352,9 +352,9 @@ public class SprintReviewPhase(
             """;
 
         var result = await runner.RunAsync(
-            factory.ForStoryRefiner(AgentRunner.ApproveAll(), runner.UserInputHandler()),
+            factory.ForSqliteStoryRefiner(AgentRunner.ApproveAll(), runner.UserInputHandler()),
             prompt,
-            "Story Refiner (bmad-create-story)",
+            "Story Refiner (sqlite)",
             ct
         );
         ui.ShowInfo($"Story refinement complete ({result.TokensUsed} tokens).");

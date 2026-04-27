@@ -246,6 +246,30 @@ public class SessionFactory(RalphLoopConfig config)
             onUserInput
         );
 
+    /// <summary>
+    /// Session config for applying story refinements directly to ledger.db via SQL.
+    /// Does NOT load the bmad-create-story skill — that skill's story-authoring constraints
+    /// can restrict shell tool access, which is required for executing sqlite3 commands.
+    /// </summary>
+    public SessionConfig ForSqliteStoryRefiner(
+        PermissionRequestHandler onPermission,
+        UserInputHandler? onUserInput = null
+    ) =>
+        Build(
+            config.Models.Default,
+            null,
+            "You are applying story refinements to a SQLite database and markdown files. "
+                + "You have full shell access. Use the shell tool to run sqlite3 commands: "
+                + "sqlite3 '<db-path>' \"<SQL statement>\". "
+                + "Apply all agreed changes consistently across ALL of these sources: "
+                + "(1) ledger.db stories table via SQL UPDATEs using sqlite3, "
+                + "(2) epics.md in the planning artifacts directory if it exists, and "
+                + "(3) any story .md files already created in the implementation artifacts directory. "
+                + "Do NOT create new story files — only update existing ones.",
+            onPermission,
+            onUserInput
+        );
+
     public SessionConfig ForPartyMode(
         IReadOnlyList<CustomAgentConfig> personas,
         PermissionRequestHandler onPermission,
