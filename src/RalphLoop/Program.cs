@@ -75,6 +75,12 @@ if (args.Any(a => a is "--help" or "-h"))
     AnsiConsole.MarkupLine(
         "  [grey]--skip-ux-review[/]             Skip Phase 5 UX Designer review"
     );
+    AnsiConsole.MarkupLine(
+        "  [grey]--debug,   -d[/]               Enable debug mode: SDK log level=debug, all events logged"
+    );
+    AnsiConsole.MarkupLine(
+        "  [grey]--smoke-test[/]                Run a minimal SDK write test and exit (no full loop)"
+    );
     AnsiConsole.WriteLine();
     AnsiConsole.MarkupLine("[bold]Phases (per epic):[/]");
     AnsiConsole.MarkupLine(
@@ -117,6 +123,10 @@ var skipFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     "--skip-pm-review",
     "--skip-ux-review",
 };
+
+var debugMode = args.Any(a => a is "--debug" or "-d");
+var smokeTestMode = args.Any(a => a is "--smoke-test");
+
 var projectPath = args.FirstOrDefault(a => !a.StartsWith("--")) ?? Directory.GetCurrentDirectory();
 
 if (!Directory.Exists(projectPath))
@@ -139,6 +149,15 @@ catch (Exception ex)
 
 // ── Apply CLI phase-skip flags (override JSON config) ─────────────────────
 CliPhaseFlags.Apply(args, config);
+
+// ── Apply debug mode ──────────────────────────────────────────────────────
+if (debugMode)
+{
+    config.DebugLog = true;
+    AnsiConsole.MarkupLine(
+        "[yellow]DEBUG MODE: SDK log level set to debug. All events will be logged.[/]"
+    );
+}
 
 // ── Validate prerequisites ─────────────────────────────────────────────────
 var prereqErrors = new List<string>();
@@ -172,18 +191,25 @@ if (prereqErrors.Count > 0)
 }
 
 // ── Validate BMAD skills ───────────────────────────────────────────────────
-var resolvedSkillDirs = SkillDirectoryResolver.Resolve(config);
-var missingSkills = BmadSkillValidator.Check(resolvedSkillDirs);
-if (missingSkills.Count > 0)
+// Skip skill validation in smoke-test mode — the smoke test uses a minimal
+// session config that doesn't load any BMAD skills.
+if (!smokeTestMode)
 {
-    BmadSkillValidator.PrintError(missingSkills, config);
-    return 1;
+    var resolvedSkillDirs = SkillDirectoryResolver.Resolve(config);
+    var missingSkills = BmadSkillValidator.Check(resolvedSkillDirs);
+    if (missingSkills.Count > 0)
+    {
+        BmadSkillValidator.PrintError(missingSkills, config);
+        return 1;
+    }
 }
 
 // ── Wire up dependencies ───────────────────────────────────────────────────
 var services = new ServiceCollection();
 
-services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
+services.AddLogging(b =>
+    b.AddConsole().SetMinimumLevel(debugMode ? LogLevel.Debug : LogLevel.Warning)
+);
 
 // Infrastructure
 services.AddSingleton(config);
@@ -205,11 +231,13 @@ services.AddSingleton(_ => new TestScriptRunner(config.ProjectPath, config.TestT
 services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
 
 // Copilot SDK — --allow-all grants yolo rights to all agents (tools, paths, URLs)
+// In debug mode, log level is elevated to capture all SDK internals including
+// permission requests, tool dispatch, and subprocess communication.
 services.AddSingleton(_ => new CopilotClient(
     new CopilotClientOptions
     {
         Cwd = config.ProjectPath,
-        LogLevel = CopilotLogLevel.Default,
+        LogLevel = debugMode ? CopilotLogLevel.Debug : CopilotLogLevel.Default,
         CliArgs = ["--allow-all"],
     }
 ));
@@ -271,8 +299,11 @@ Console.CancelKeyPress += (_, e) =>
 
 try
 {
-    await ModelResolver.ResolveAsync(copilotClient, config.Models, ui, cts.Token);
-    ui.ShowModelSummary(config.Models);
+    if (!smokeTestMode)
+    {
+        await ModelResolver.ResolveAsync(copilotClient, config.Models, ui, cts.Token);
+        ui.ShowModelSummary(config.Models);
+    }
 }
 catch (InvalidOperationException ex)
 {
@@ -282,13 +313,175 @@ catch (InvalidOperationException ex)
 
 // ── Check entire.io ────────────────────────────────────────────────────────
 
-if (config.Git.UseEntire && !await git.IsEntireEnabledAsync())
+if (!smokeTestMode && config.Git.UseEntire && !await git.IsEntireEnabledAsync())
 {
     ui.ShowWarning("entire.io is not enabled for this repository.");
     if (ui.Confirm("Enable entire.io now? (Recommended for session capture)"))
     {
         await git.EnableEntireAsync();
         ui.ShowSuccess("entire.io enabled.");
+    }
+}
+
+// ── Smoke test mode — minimal SDK write test ──────────────────────────────
+if (smokeTestMode)
+{
+    AnsiConsole.MarkupLine("[yellow]SMOKE TEST: Sending a file-write prompt to the SDK...[/]");
+    AnsiConsole.MarkupLine($"[grey]Working directory: {config.ProjectPath}[/]");
+
+    var runLogger = sp.GetRequiredService<RunLogger>();
+    var smokeOutputFile = Path.Combine(config.ProjectPath, "smoke-test-result.txt");
+    var sessionCfg = new GitHub.Copilot.SDK.SessionConfig
+    {
+        Model = "claude-sonnet-4.6",
+        WorkingDirectory = config.ProjectPath,
+        EnableConfigDiscovery = false,
+        OnPermissionRequest = AgentRunner.LoggingApproveAll(runLogger, "smoke-test"),
+    };
+
+    var responseBuilder = new System.Text.StringBuilder();
+    var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var events = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+    await using var session = await copilotClient.CreateSessionAsync(sessionCfg);
+    using var _ = session.On(evt =>
+    {
+        var label = evt.GetType().Name;
+        events.Add(label);
+
+        switch (evt)
+        {
+            case GitHub.Copilot.SDK.AssistantMessageEvent msg:
+                responseBuilder.Append(msg.Data.Content);
+                break;
+
+            case GitHub.Copilot.SDK.PermissionRequestedEvent perm:
+                var permJson = System.Text.Json.JsonSerializer.Serialize(
+                    perm.Data,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = false }
+                );
+                AnsiConsole.MarkupLine(
+                    $"[yellow]PERMISSION REQUESTED: {Markup.Escape(permJson)}[/]"
+                );
+                runLogger.LogPermissionEvent("smoke-test", "permission.requested", permJson);
+                break;
+
+            case GitHub.Copilot.SDK.ToolExecutionStartEvent toolStart:
+                AnsiConsole.MarkupLine(
+                    $"[blue]TOOL START: {toolStart.Data?.ToolName ?? "(unknown)"}[/]"
+                );
+                runLogger.LogToolEvent(
+                    "smoke-test",
+                    toolStart.Data?.ToolName ?? "(unknown)",
+                    "start",
+                    ""
+                );
+                break;
+
+            case GitHub.Copilot.SDK.ToolExecutionCompleteEvent toolComplete:
+                var toolErr = toolComplete.Data?.Error?.Message;
+                var status = toolErr is null ? "ok" : $"error: {toolErr}";
+                AnsiConsole.MarkupLine(
+                    $"[blue]TOOL COMPLETE: {toolComplete.Data?.ToolCallId ?? "(unknown)"} → {Markup.Escape(status)}[/]"
+                );
+                runLogger.LogToolEvent(
+                    "smoke-test",
+                    toolComplete.Data?.ToolCallId ?? "(unknown)",
+                    "complete",
+                    status
+                );
+                break;
+
+            case GitHub.Copilot.SDK.ExternalToolRequestedEvent ext:
+                AnsiConsole.MarkupLine(
+                    $"[magenta]EXTERNAL TOOL REQUESTED: {ext.Data?.ToolName ?? "(unknown)"}[/]"
+                );
+                runLogger.LogToolEvent(
+                    "smoke-test",
+                    ext.Data?.ToolName ?? "(unknown)",
+                    "external-requested",
+                    ""
+                );
+                break;
+
+            case GitHub.Copilot.SDK.SessionWarningEvent warn:
+                AnsiConsole.MarkupLine(
+                    $"[yellow]SESSION WARNING: {Markup.Escape(warn.Data?.Message ?? "")}[/]"
+                );
+                break;
+
+            case GitHub.Copilot.SDK.SessionErrorEvent err:
+                done.TrySetException(
+                    new InvalidOperationException($"Session error: {err.Data.Message}")
+                );
+                break;
+
+            case GitHub.Copilot.SDK.SessionIdleEvent:
+                done.TrySetResult();
+                break;
+        }
+    });
+
+    var prompt =
+        $"Write a file called 'smoke-test-result.txt' inside the directory '{config.ProjectPath}' "
+        + "containing exactly the text: sdk-write-ok\n\n"
+        + "After writing the file, confirm what you did in one sentence.";
+
+    await session.SendAsync(new GitHub.Copilot.SDK.MessageOptions { Prompt = prompt });
+
+    using var smokeCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+    try
+    {
+        await done.Task.WaitAsync(smokeCts.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        AnsiConsole.MarkupLine("[red]SMOKE TEST TIMED OUT[/]");
+        AnsiConsole.MarkupLine($"Events seen: {string.Join(", ", events.Distinct())}");
+        return 1;
+    }
+    catch (InvalidOperationException ex)
+    {
+        AnsiConsole.MarkupLine($"[red]SMOKE TEST FAILED: {Markup.Escape(ex.Message)}[/]");
+        AnsiConsole.MarkupLine($"Events seen: {string.Join(", ", events.Distinct())}");
+        return 1;
+    }
+
+    AnsiConsole.MarkupLine($"[grey]Events seen: {string.Join(", ", events.Distinct())}[/]");
+    AnsiConsole.MarkupLine(
+        $"[grey]Agent response: {Markup.Escape(responseBuilder.ToString().Trim())}[/]"
+    );
+
+    if (File.Exists(smokeOutputFile))
+    {
+        var content = (await File.ReadAllTextAsync(smokeOutputFile)).Trim();
+        if (content == "sdk-write-ok")
+        {
+            AnsiConsole.MarkupLine(
+                "[green]✓ SMOKE TEST PASSED: SDK successfully wrote the file.[/]"
+            );
+            return 0;
+        }
+        else
+        {
+            AnsiConsole.MarkupLine(
+                $"[red]✗ SMOKE TEST FAILED: File exists but content is '{Markup.Escape(content)}' (expected 'sdk-write-ok')[/]"
+            );
+            return 1;
+        }
+    }
+    else
+    {
+        AnsiConsole.MarkupLine(
+            $"[red]✗ SMOKE TEST FAILED: SDK did not create '{smokeOutputFile}'[/]"
+        );
+        AnsiConsole.MarkupLine(
+            "[yellow]This indicates the SDK cannot write files in the project directory.[/]"
+        );
+        AnsiConsole.MarkupLine(
+            $"[grey]Check {config.ProjectPath}/logs/ for the JSONL debug log.[/]"
+        );
+        return 1;
     }
 }
 

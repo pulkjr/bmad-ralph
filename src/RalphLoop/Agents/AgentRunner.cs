@@ -109,7 +109,48 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
                     );
                     break;
 
-                case ToolExecutionCompleteEvent:
+                case ToolExecutionStartEvent toolStart:
+                    runLogger.LogToolEvent(
+                        agentLabel,
+                        toolStart.Data?.ToolName ?? "(unknown)",
+                        "start",
+                        ""
+                    );
+                    break;
+
+                case ToolExecutionCompleteEvent toolComplete:
+                    var toolErr = toolComplete.Data?.Error?.Message;
+                    if (toolErr is not null)
+                        ui.ShowWarning(
+                            $"[{agentLabel}] Tool '{toolComplete.Data?.ToolCallId}' failed: {toolErr}"
+                        );
+                    runLogger.LogToolEvent(
+                        agentLabel,
+                        toolComplete.Data?.ToolCallId ?? "(unknown)",
+                        "complete",
+                        toolErr is null ? "ok" : $"error: {toolErr}"
+                    );
+                    break;
+
+                case ExternalToolRequestedEvent ext:
+                    runLogger.LogToolEvent(
+                        agentLabel,
+                        ext.Data?.ToolName ?? "(unknown)",
+                        "external-requested",
+                        ""
+                    );
+                    break;
+
+                case PermissionRequestedEvent perm:
+                    var permDetail = System.Text.Json.JsonSerializer.Serialize(
+                        perm.Data,
+                        new System.Text.Json.JsonSerializerOptions { WriteIndented = false }
+                    );
+                    runLogger.LogPermissionEvent(agentLabel, "permission.requested", permDetail);
+                    break;
+
+                case SessionWarningEvent warn:
+                    ui.ShowWarning($"[{agentLabel}] Session warning: {warn.Data?.Message}");
                     break;
 
                 case SessionIdleEvent:
@@ -240,7 +281,48 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
                     );
                     break;
 
-                case ToolExecutionCompleteEvent:
+                case ToolExecutionStartEvent toolStart:
+                    runLogger.LogToolEvent(
+                        agentLabel,
+                        toolStart.Data?.ToolName ?? "(unknown)",
+                        "start",
+                        ""
+                    );
+                    break;
+
+                case ToolExecutionCompleteEvent toolComplete:
+                    var toolErr = toolComplete.Data?.Error?.Message;
+                    if (toolErr is not null)
+                        ui.ShowWarning(
+                            $"[{agentLabel}] Tool '{toolComplete.Data?.ToolCallId}' failed: {toolErr}"
+                        );
+                    runLogger.LogToolEvent(
+                        agentLabel,
+                        toolComplete.Data?.ToolCallId ?? "(unknown)",
+                        "complete",
+                        toolErr is null ? "ok" : $"error: {toolErr}"
+                    );
+                    break;
+
+                case ExternalToolRequestedEvent ext:
+                    runLogger.LogToolEvent(
+                        agentLabel,
+                        ext.Data?.ToolName ?? "(unknown)",
+                        "external-requested",
+                        ""
+                    );
+                    break;
+
+                case PermissionRequestedEvent perm:
+                    var permDetail = System.Text.Json.JsonSerializer.Serialize(
+                        perm.Data,
+                        new System.Text.Json.JsonSerializerOptions { WriteIndented = false }
+                    );
+                    runLogger.LogPermissionEvent(agentLabel, "permission.requested", permDetail);
+                    break;
+
+                case SessionWarningEvent warn:
+                    ui.ShowWarning($"[{agentLabel}] Session warning: {warn.Data?.Message}");
                     break;
 
                 case SessionIdleEvent:
@@ -280,6 +362,24 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
     /// Builds the standard permission handler — approves all by default.
     /// </summary>
     public static PermissionRequestHandler ApproveAll() => PermissionHandler.ApproveAll;
+
+    /// <summary>
+    /// Builds a permission handler that logs each request to <paramref name="runLogger"/>
+    /// before approving it. Use in debug mode to trace what the SDK is asking for.
+    /// </summary>
+    public static PermissionRequestHandler LoggingApproveAll(
+        RunLogger runLogger,
+        string agentLabel
+    ) =>
+        async (request, ct) =>
+        {
+            var detail = System.Text.Json.JsonSerializer.Serialize(
+                request,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = false }
+            );
+            runLogger.LogPermissionEvent(agentLabel, "approve-all-handler", detail);
+            return await PermissionHandler.ApproveAll(request, ct);
+        };
 
     /// <summary>
     /// Builds an OnUserInputRequest handler that delegates to ConsoleUI for terminal prompts.

@@ -123,6 +123,39 @@ public sealed class RunLogger
         );
     }
 
+    public void LogToolEvent(string agentLabel, string toolName, string phase, string detail)
+    {
+        if (!_enabled)
+            return;
+        Append(
+            new
+            {
+                @event = "tool_event",
+                timestamp = Ts(),
+                agent = agentLabel,
+                toolName,
+                phase,
+                detail,
+            }
+        );
+    }
+
+    public void LogPermissionEvent(string agentLabel, string permissionType, string detail)
+    {
+        if (!_enabled)
+            return;
+        Append(
+            new
+            {
+                @event = "permission_event",
+                timestamp = Ts(),
+                agent = agentLabel,
+                permissionType,
+                detail,
+            }
+        );
+    }
+
     public void LogError(string context, string message)
     {
         if (!_enabled)
