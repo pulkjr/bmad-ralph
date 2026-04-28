@@ -23,7 +23,7 @@ public class ModelResolverTests
             new CopilotClientOptions
             {
                 AutoStart = false,
-                OnListModels = _ => Task.FromResult(list),
+                OnListModels = _ => Task.FromResult<IList<GitHub.Copilot.SDK.ModelInfo>>(list),
             }
         );
     }

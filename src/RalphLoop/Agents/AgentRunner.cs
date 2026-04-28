@@ -77,6 +77,7 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
         runLogger.LogAgentInput(agentLabel, config.Model, prompt);
 
         await using var session = await client.CreateSessionAsync(config);
+        await session.Rpc.Permissions.SetApproveAllAsync(true, ct);
 
         var responseBuilder = new System.Text.StringBuilder();
         long tokensUsed = 0;
@@ -105,7 +106,7 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
                     ui.ShowInfo(
                         $"[{agentLabel}] Context compaction complete: "
                             + $"{compact.Data.PreCompactionTokens} → {compact.Data.PostCompactionTokens} tokens "
-                            + $"({(compact.Data.CompactionTokensUsed != null ? (int)(compact.Data.CompactionTokensUsed.Input + compact.Data.CompactionTokensUsed.Output) : 0)} tokens used)."
+                            + $"({(compact.Data.CompactionTokensUsed != null ? (int)(compact.Data.CompactionTokensUsed.InputTokens + compact.Data.CompactionTokensUsed.OutputTokens) : 0)} tokens used)."
                     );
                     break;
 
@@ -250,6 +251,7 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
         runLogger.LogAgentInput(agentLabel, config.Model, prompt);
 
         await using var session = await client.CreateSessionAsync(config);
+        await session.Rpc.Permissions.SetApproveAllAsync(true, ct);
 
         var responseBuilder = new System.Text.StringBuilder();
         long tokensUsed = 0;
@@ -277,7 +279,7 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
                     ui.ShowInfo(
                         $"[{agentLabel}] Context compaction complete: "
                             + $"{compact.Data.PreCompactionTokens} → {compact.Data.PostCompactionTokens} tokens "
-                            + $"({(compact.Data.CompactionTokensUsed != null ? (int)(compact.Data.CompactionTokensUsed.Input + compact.Data.CompactionTokensUsed.Output) : 0)} tokens used)."
+                            + $"({(compact.Data.CompactionTokensUsed != null ? (int)(compact.Data.CompactionTokensUsed.InputTokens + compact.Data.CompactionTokensUsed.OutputTokens) : 0)} tokens used)."
                     );
                     break;
 
@@ -340,7 +342,7 @@ public class AgentRunner(CopilotClient client, ConsoleUI ui, RunLogger runLogger
             }
         });
 
-        var attachmentItem = new UserMessageDataAttachmentsItemFile
+        var attachmentItem = new UserMessageAttachmentFile
         {
             Path = attachmentFilePath,
             DisplayName = System.IO.Path.GetFileName(attachmentFilePath),

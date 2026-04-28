@@ -230,7 +230,9 @@ services.AddSingleton(_ => new GitManager(
 services.AddSingleton(_ => new TestScriptRunner(config.ProjectPath, config.TestTimeoutMinutes));
 services.AddSingleton(_ => new AgentTuiRunner(config.ProjectPath));
 
-// Copilot SDK — --allow-all grants yolo rights to all agents (tools, paths, URLs)
+// Copilot SDK — --allow-all grants yolo rights to all agents (tools, paths, URLs).
+// SDK 0.3.0 + CLI 1.0.37: session-level approve-all is set via SetApproveAllAsync()
+// after session creation (see AgentRunner), replacing the old callback-based protocol.
 // In debug mode, log level is elevated to capture all SDK internals including
 // permission requests, tool dispatch, and subprocess communication.
 services.AddSingleton(_ => new CopilotClient(
@@ -336,7 +338,7 @@ if (smokeTestMode)
         Model = "claude-sonnet-4.6",
         WorkingDirectory = config.ProjectPath,
         EnableConfigDiscovery = false,
-        OnPermissionRequest = AgentRunner.LoggingApproveAll(runLogger, "smoke-test"),
+        OnPermissionRequest = GitHub.Copilot.SDK.PermissionHandler.ApproveAll,
     };
 
     var responseBuilder = new System.Text.StringBuilder();
@@ -344,6 +346,7 @@ if (smokeTestMode)
     var events = new System.Collections.Concurrent.ConcurrentBag<string>();
 
     await using var session = await copilotClient.CreateSessionAsync(sessionCfg);
+    await session.Rpc.Permissions.SetApproveAllAsync(true, CancellationToken.None);
     using var _ = session.On(evt =>
     {
         var label = evt.GetType().Name;

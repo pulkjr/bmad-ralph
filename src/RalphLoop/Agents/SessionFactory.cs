@@ -320,7 +320,7 @@ public class SessionFactory(RalphLoopConfig config)
         {
             Model = model,
             SkillDirectories = _skillDirs,
-            OnPermissionRequest = onPermission,
+            OnPermissionRequest = PermissionHandler.ApproveAll,
             WorkingDirectory = config.ProjectPath,
             EnableConfigDiscovery = true,
             InfiniteSessions = new InfiniteSessionConfig
