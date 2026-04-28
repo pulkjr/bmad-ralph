@@ -15,12 +15,15 @@ public static class ModelResolver
     /// <summary>
     /// Resolves all models in <paramref name="models"/> in-place.
     /// Logs a warning via <paramref name="ui"/> for every substitution made.
+    /// When <paramref name="askModelChoice"/> is provided, unavailable models trigger an
+    /// interactive selection prompt instead of silent auto-substitution.
     /// </summary>
     public static async Task ResolveAsync(
         CopilotClient client,
         ModelsConfig models,
         ConsoleUI ui,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        Func<string, List<string>, string, string>? askModelChoice = null
     )
     {
         IList<GitHub.Copilot.SDK.ModelInfo> available;
@@ -48,21 +51,71 @@ public static class ModelResolver
         var usableIds = usable.Select(m => m.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Resolve each role's model.
-        models.Default = Resolve(models.Default, "Default (Scrum Master)", usable, usableIds, ui);
-        models.Developer = Resolve(models.Developer, "Developer", usable, usableIds, ui);
-        models.Architect = Resolve(models.Architect, "Architect", usable, usableIds, ui);
+        models.Default = Resolve(
+            models.Default,
+            "Default (Scrum Master)",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
+        models.Developer = Resolve(
+            models.Developer,
+            "Developer",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
+        models.Architect = Resolve(
+            models.Architect,
+            "Architect",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
         models.ProductManager = Resolve(
             models.ProductManager,
             "Product Manager",
             usable,
             usableIds,
-            ui
+            ui,
+            askModelChoice
         );
-        models.Qa = Resolve(models.Qa, "QA", usable, usableIds, ui);
-        models.Security = Resolve(models.Security, "Security", usable, usableIds, ui);
-        models.TechWriter = Resolve(models.TechWriter, "Tech Writer", usable, usableIds, ui);
-        models.UxDesigner = Resolve(models.UxDesigner, "UX Designer", usable, usableIds, ui);
-        models.PartyMode = Resolve(models.PartyMode, "Party Mode", usable, usableIds, ui);
+        models.Qa = Resolve(models.Qa, "QA", usable, usableIds, ui, askModelChoice);
+        models.Security = Resolve(
+            models.Security,
+            "Security",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
+        models.TechWriter = Resolve(
+            models.TechWriter,
+            "Tech Writer",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
+        models.UxDesigner = Resolve(
+            models.UxDesigner,
+            "UX Designer",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
+        models.PartyMode = Resolve(
+            models.PartyMode,
+            "Party Mode",
+            usable,
+            usableIds,
+            ui,
+            askModelChoice
+        );
 
         // Enforce QA ≠ Developer — diverse models produce more reliable acceptance reviews.
         if (models.Qa.Equals(models.Developer, StringComparison.OrdinalIgnoreCase))
@@ -96,25 +149,35 @@ public static class ModelResolver
         string roleLabel,
         List<ModelInfo> usable,
         HashSet<string> usableIds,
-        ConsoleUI ui
+        ConsoleUI ui,
+        Func<string, List<string>, string, string>? askModelChoice
     )
     {
-        if (usableIds.Contains(configured))
-            return configured;
-
-        // Try to pick a fallback that:
-        //   1. Is 1x (Billing.Multiplier <= 1.5 or Billing is null — standard pricing)
-        //   2. Prefers the same provider prefix (gpt-* or claude-*)
-        var fallback = BestFallback(
-            usable,
-            preferSameProvider: ProviderPrefix(configured),
-            exclude: null
+        // Case-insensitive match — return the correctly-cased ID from the available list
+        // to prevent the SDK from rejecting a model due to casing differences (e.g. "GPT-5.4" vs "gpt-5.4").
+        var match = usable.FirstOrDefault(m =>
+            m.Id.Equals(configured, StringComparison.OrdinalIgnoreCase)
         );
-        fallback ??= usable[0].Id; // last resort: anything usable
+        if (match is not null)
+            return match.Id;
 
-        ui.ShowWarning(
-            $"Model '{configured}' is not available — using '{fallback}' for [{roleLabel}]."
-        );
+        var fallback =
+            BestFallback(usable, preferSameProvider: ProviderPrefix(configured), exclude: null)
+            ?? usable[0].Id;
+
+        ui.ShowWarning($"Model '{configured}' is not available for [{roleLabel}].");
+
+        if (askModelChoice is not null)
+        {
+            var allIds = usable.Select(m => m.Id).ToList();
+            return askModelChoice(
+                $"Select a replacement model for [{roleLabel}]:",
+                allIds,
+                fallback
+            );
+        }
+
+        ui.ShowWarning($"Using '{fallback}' for [{roleLabel}].");
         return fallback;
     }
 

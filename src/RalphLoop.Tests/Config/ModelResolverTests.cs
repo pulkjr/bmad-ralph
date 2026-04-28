@@ -142,7 +142,52 @@ public class ModelResolverTests
         Assert.Equal("gpt-5.1", models.Developer);
     }
 
-    // ── Fallback selection ────────────────────────────────────────────────────
+    [Fact]
+    public async Task Model_WithWrongCasing_IsNormalizedToAvailableId()
+    {
+        // e.g. config says "GPT-5.4" but the API returns "gpt-5.4".
+        // ModelResolver must normalise to the correctly-cased ID so the SDK
+        // doesn't reject the session.create call.
+        var client = ClientWith(Model("gpt-5.4", policyState: "enabled"));
+        var models = AllSetTo("GPT-5.4");
+
+        await ModelResolver.ResolveAsync(client, models, SilentUi());
+
+        Assert.Equal("gpt-5.4", models.Developer);
+    }
+
+    [Fact]
+    public async Task Model_Unavailable_UsesAskModelChoiceDelegate_WhenProvided()
+    {
+        // When askModelChoice is provided and a model is unavailable, the delegate
+        // is invoked so the caller can prompt the user for a replacement.
+        var client = ClientWith(
+            Model("gpt-5", policyState: "disabled"),
+            Model("claude-sonnet-4.6", policyState: "enabled"),
+            Model("gpt-5.1", policyState: "enabled")
+        );
+        var models = new ModelsConfig { Developer = "gpt-5" };
+
+        var promptedRoles = new List<string>();
+        await ModelResolver.ResolveAsync(
+            client,
+            models,
+            SilentUi(),
+            askModelChoice: (question, choices, recommended) =>
+            {
+                promptedRoles.Add(question);
+                return recommended; // simulate user accepting the recommendation
+            }
+        );
+
+        // The Developer role must have triggered a prompt
+        Assert.True(
+            promptedRoles.Any(q => q.Contains("Developer")),
+            $"Expected a prompt for [Developer] but got: [{string.Join("], [", promptedRoles)}]"
+        );
+        // Developer should resolve to the same-provider fallback (gpt-5.1)
+        Assert.Equal("gpt-5.1", models.Developer);
+    }
 
     [Fact]
     public async Task Fallback_Prefers1xModel_OverOpusModel()

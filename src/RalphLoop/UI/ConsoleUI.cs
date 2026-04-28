@@ -31,6 +31,35 @@ public class ConsoleUI
         );
     }
 
+    /// <summary>
+    /// Shows a model-selection prompt with <paramref name="recommended"/> visually highlighted.
+    /// The recommended model is placed first in the list.
+    /// Returns the selected model ID (never null).
+    /// </summary>
+    public string AskModelChoice(string question, IEnumerable<string> choices, string recommended)
+    {
+        Bell();
+        var choiceList = choices.ToList();
+
+        // Ensure recommended is first
+        var ordered = new[] { recommended }
+            .Concat(
+                choiceList.Where(id => !id.Equals(recommended, StringComparison.OrdinalIgnoreCase))
+            )
+            .ToList();
+
+        return AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title(question)
+                .UseConverter(id =>
+                    id.Equals(recommended, StringComparison.OrdinalIgnoreCase)
+                        ? $"{id} [dim](recommended)[/]"
+                        : id
+                )
+                .AddChoices(ordered)
+        );
+    }
+
     /// <summary>Emits the ASCII BEL character to alert an unfocused terminal.</summary>
     private static void Bell() => Console.Write('\a');
 

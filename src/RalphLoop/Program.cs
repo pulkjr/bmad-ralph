@@ -303,7 +303,14 @@ try
 {
     if (!smokeTestMode)
     {
-        await ModelResolver.ResolveAsync(copilotClient, config.Models, ui, cts.Token);
+        await ModelResolver.ResolveAsync(
+            copilotClient,
+            config.Models,
+            ui,
+            cts.Token,
+            askModelChoice: (question, choices, recommended) =>
+                ui.AskModelChoice(question, choices, recommended)
+        );
         ui.ShowModelSummary(config.Models);
     }
 }
